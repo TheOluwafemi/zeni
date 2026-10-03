@@ -4,6 +4,7 @@ import { AI_LEVELS, type AiLevel } from "../shared/ai";
 import type { Difficulty } from "../shared/constants";
 import { sound } from "./audio";
 import { start, setOnExit, type Opponent } from "./game-screen";
+import { setupInstall } from "./install";
 import { makeCoinSprite } from "./game/sprites";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -84,6 +85,8 @@ soundButton.addEventListener("click", () => {
   if (sound.enabled) sound.keep();
 });
 syncSound();
+
+setupInstall($<HTMLButtonElement>("#install"), $("#ios-hint"), $<HTMLButtonElement>("#ios-hint-dismiss"));
 
 // The big coin on the home screen reuses the in-game coin art.
 const brand = $<HTMLCanvasElement>(".brand-coin");

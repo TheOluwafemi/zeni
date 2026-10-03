@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1c120b" />
     <meta name="description" content="Zeni: flick coins across a round table. Hit exactly one coin to keep it." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Zeni" />
     <title>Zeni</title>
     <link rel="stylesheet" href="/client/style.css" />
   </head>
@@ -41,6 +45,12 @@
         <div class="row">
           <button type="button" id="open-howto">How to play</button>
           <button type="button" id="toggle-sound" aria-pressed="true">Sound on</button>
+        </div>
+
+        <button type="button" id="install" hidden>Install Zeni</button>
+        <div id="ios-hint" class="hint" hidden>
+          <p>To install Zeni on your iPhone or iPad, tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.</p>
+          <button type="button" id="ios-hint-dismiss" class="ghost">Got it</button>
         </div>
       </div>
     </section>

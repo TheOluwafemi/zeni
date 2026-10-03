@@ -11,14 +11,17 @@
     "test": "vitest run",
     "cf-typegen": "wrangler types",
     "simulate": "tsx tools/simulate.ts",
-    "ai-match": "tsx tools/ai-match.ts"
+    "ai-match": "tsx tools/ai-match.ts",
+    "icons": "tsx tools/make-icons.ts"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",
     "@types/node": "^26.6.4",
+    "sharp": "^0.35.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
+    "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.3",
     "wrangler": "^4.147.0"
   }
