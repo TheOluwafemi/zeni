@@ -48,6 +48,20 @@ export class BoardView {
     };
   }
 
+  /** Board units to a screen point (clientX/clientY), for DOM effects over the canvas. */
+  toClient(x: number, y: number): Point {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: rect.left + ((x + RIM) / VIEW_SIZE) * rect.width,
+      y: rect.top + ((y + RIM) / VIEW_SIZE) * rect.height,
+    };
+  }
+
+  /** Screen pixels per board unit. */
+  cssScale(): number {
+    return this.canvas.getBoundingClientRect().width / VIEW_SIZE;
+  }
+
   /** Draw in raw device pixels (for the cached background). */
   pixelSpace(): void {
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);

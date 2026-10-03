@@ -1,236 +1,140 @@
+// App shell: home screen, settings, How to Play, and moving between screens.
+
 import { AI_LEVELS, type AiLevel } from "../shared/ai";
 import type { Difficulty } from "../shared/constants";
-import { randomSeed } from "../shared/rng";
-import { other } from "../shared/rules";
-import type { Seat } from "../shared/types";
-import { ComputerPlayer } from "./game/computer";
-import { LocalGame, type Resolved } from "./game/local-game";
-import { Renderer } from "./game/render";
-import { BoardView } from "./game/view";
-import { mountTuning } from "./tune";
-
-/** Who sits in seat 1: a friend on the same device, or the computer at some level. */
-type Opponent = "friend" | AiLevel;
-const COMPUTER_SEAT: Seat = 1;
-const AIM_PREVIEW_MS = 650;
+import { sound } from "./audio";
+import { start, setOnExit, type Opponent } from "./game-screen";
+import { makeCoinSprite } from "./game/sprites";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
-const canvas = $<HTMLCanvasElement>("#board");
-const wrap = $("#board-wrap");
-const message = $("#message");
-const result = $("#result");
-const opponentSelect = $<HTMLSelectElement>("#opponent");
-const bars = [0, 1].map((seat) => $(`.player[data-seat="${seat}"]`));
+const home = $("#home");
+const gameScreen = $("#game");
+const howto = $("#howto");
 
-// ?seed=123 replays the same layout every game, handy while tuning.
-const params = new URLSearchParams(location.search);
-const fixedSeed = params.has("seed") ? Number(params.get("seed")) >>> 0 : null;
-const nextSeed = () => fixedSeed ?? randomSeed();
+// --- Remembered choices (per device; safe if storage is unavailable) ------
 
-let difficulty: Difficulty = params.get("difficulty") === "hard" ? "hard" : "easy";
-let opponent: Opponent = AI_LEVELS.includes(params.get("opponent") as AiLevel)
-  ? (params.get("opponent") as AiLevel)
-  : "friend";
-
-const view = new BoardView(canvas, wrap);
-const renderer = new Renderer(view);
-const game = new LocalGame(nextSeed(), difficulty);
-let computer: ComputerPlayer | null = null;
-let dirty = true;
-/** Bumped on every new game so a computer turn from an old game is ignored. */
-let gameToken = 0;
-
-if (params.has("tune")) mountTuning($("#tune"), game.physics);
-
-// --- Names and wording ---------------------------------------------------
-
-const vsComputer = () => opponent !== "friend";
-const isYou = (seat: Seat) => vsComputer() && seat !== COMPUTER_SEAT;
-const isComputerTurn = () => vsComputer() && game.state.turn === COMPUTER_SEAT;
-
-function name(seat: Seat): string {
-  if (!vsComputer()) return seat === 0 ? "Player 1" : "Player 2";
-  return seat === COMPUTER_SEAT ? "Computer" : "You";
+function load<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const v = localStorage.getItem(key) as T | null;
+    return v && allowed.includes(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
 }
-const keeps = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "keep" : "keeps"}`;
-const gets = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "get" : "gets"}`;
-const turnOf = (seat: Seat) => (isYou(seat) ? "Your turn." : `${name(seat)}'s turn.`);
-const goesFirst = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "go" : "goes"} first.`;
-
-// --- UI -------------------------------------------------------------------
-
-function updateBars(thinking = false): void {
-  const { scores, turn, status } = game.state;
-  bars.forEach((bar, i) => {
-    const seat = i as Seat;
-    bar.classList.toggle("active", status === "playing" && turn === seat);
-    const label = name(seat) + (thinking && seat === COMPUTER_SEAT ? " · thinking…" : "");
-    bar.querySelector(".name")!.textContent = label;
-    bar.querySelector(".score")!.textContent = String(scores[seat]);
-    bar.querySelector(".pips")!.replaceChildren(
-      ...Array.from({ length: scores[seat] }, () => {
-        const p = document.createElement("span");
-        p.className = "pip";
-        return p;
-      }),
-    );
-  });
+function save(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Not persisted; fine.
+  }
 }
 
-function say(text: string): void {
-  message.textContent = text;
+let level: AiLevel = load("zeni.level", AI_LEVELS, "beginner");
+let table: Difficulty = load("zeni.table", ["easy", "hard"] as const, "easy");
+
+// --- Screens --------------------------------------------------------------
+
+function show(screen: "home" | "game"): void {
+  home.hidden = screen !== "home";
+  gameScreen.hidden = screen !== "game";
 }
 
-function startGame(): void {
-  gameToken++;
-  game.reset(nextSeed(), difficulty);
-  result.hidden = true;
-  for (const b of difficultyButtons) b.classList.toggle("current", b.dataset.difficulty === difficulty);
-  opponentSelect.value = opponent;
-  updateBars();
-  say(
-    `${goesFirst(game.state.turn)} Drag back from a coin and let go. Hit exactly one coin to keep it, but anything that falls off goes to the other player.`,
+function play(opponent: Opponent): void {
+  sound.unlock();
+  show("game");
+  start({ opponent, difficulty: table });
+}
+
+setOnExit(() => show("home"));
+
+// --- Home -----------------------------------------------------------------
+
+function bindSegment(group: string, current: string, onPick: (v: string) => void): void {
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>(`[data-group="${group}"] button`)];
+  const sync = (v: string) =>
+    buttons.forEach((b) => {
+      const on = b.dataset.value === v;
+      b.classList.toggle("current", on);
+      b.setAttribute("aria-checked", String(on));
+    });
+  buttons.forEach((b) =>
+    b.addEventListener("click", () => {
+      onPick(b.dataset.value!);
+      sync(b.dataset.value!);
+    }),
   );
-  dirty = true;
-  void playComputerTurn();
+  sync(current);
 }
 
-function showResult(): void {
-  const { winner, scores } = game.state;
-  const title =
-    winner === "draw" ? "It's a draw" : isYou(winner as Seat) ? "You win!" : `${name(winner as Seat)} wins`;
-  $("#result-title").textContent = title;
-  $("#result-score").textContent = `${scores[0]} – ${scores[1]}`;
-  result.hidden = false;
-  $<HTMLButtonElement>("#play-again").focus();
+bindSegment("level", level, (v) => save("zeni.level", (level = v as AiLevel)));
+bindSegment("table", table, (v) => save("zeni.table", (table = v as Difficulty)));
+
+$("#play-computer").addEventListener("click", () => play(level));
+$("#play-friend").addEventListener("click", () => play("friend"));
+
+const soundButton = $<HTMLButtonElement>("#toggle-sound");
+function syncSound(): void {
+  soundButton.textContent = sound.enabled ? "Sound on" : "Sound off";
+  soundButton.setAttribute("aria-pressed", String(sound.enabled));
 }
-
-game.onResolved = ({ shooter, outcome }: Resolved) => {
-  updateBars();
-  if (game.state.status === "over") {
-    say("Game over.");
-    // Let the capture animation play before the result card covers the board.
-    setTimeout(showResult, 600);
-    return;
-  }
-  const them = other(shooter);
-  const fell = outcome.fallen.length;
-  const fellText = fell === 1 ? "A coin fell off the table" : `${fell} coins fell off the table`;
-  const handedOver = `${gets(them)} ${fell === 1 ? "it" : "them"}.`;
-
-  if (outcome.captured !== null && isYou(shooter)) navigator.vibrate?.(12);
-  if (outcome.again) {
-    say(isYou(shooter) || !vsComputer()
-      ? `${keeps(shooter)} a coin! Shoot again with the same coin.`
-      : `${keeps(shooter)} a coin and goes again with the same coin.`);
-  } else if (outcome.blocked) {
-    say(`${keeps(shooter)} a coin, but that coin stopped touching another, so it can't go again. ${turnOf(them)}`);
-  } else if (outcome.captured !== null) {
-    say(`${keeps(shooter)} a coin, but ${fellText.toLowerCase()}. ${handedOver} ${turnOf(them)}`);
-  } else if (fell > 0) {
-    say(`${fellText}. ${handedOver} ${turnOf(them)}`);
-  } else if (outcome.touched === 0) {
-    say(`No touch. ${turnOf(them)}`);
-  } else {
-    say(`Touched ${outcome.touched} coins, so none kept. ${turnOf(them)}`);
-  }
-  void playComputerTurn();
-};
-
-const difficultyButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-difficulty]")];
-for (const b of difficultyButtons) {
-  b.addEventListener("click", () => {
-    difficulty = b.dataset.difficulty as Difficulty;
-    startGame();
-  });
-}
-opponentSelect.addEventListener("change", () => {
-  opponent = opponentSelect.value as Opponent;
-  startGame();
+soundButton.addEventListener("click", () => {
+  sound.unlock();
+  sound.setEnabled(!sound.enabled);
+  syncSound();
+  if (sound.enabled) sound.keep();
 });
-$("#play-again").addEventListener("click", startGame);
+syncSound();
 
-// --- Computer opponent ----------------------------------------------------
+// The big coin on the home screen reuses the in-game coin art.
+const brand = $<HTMLCanvasElement>(".brand-coin");
+const dpr = Math.min(window.devicePixelRatio || 1, 3);
+const brandSize = 96;
+brand.width = brand.height = brandSize * dpr;
+brand.style.width = brand.style.height = `${brandSize}px`;
+const art = makeCoinSprite(1, (brandSize * dpr * 0.94) / 72); // 72 = coin diameter in board units
+brand.getContext("2d")!.drawImage(art, (brand.width - art.width) / 2, (brand.height - art.height) / 2);
 
-async function playComputerTurn(): Promise<void> {
-  if (!isComputerTurn() || game.state.status !== "playing" || !game.canAim) return;
-  const token = gameToken;
-  computer ??= new ComputerPlayer();
-  updateBars(true);
+// --- How to play ----------------------------------------------------------
 
-  const shot = await computer.think(game.state, opponent as AiLevel, game.physics);
-  if (token !== gameToken) return;
-  updateBars();
+const slides = [...howto.querySelectorAll<HTMLElement>(".slides li")];
+const dots = [...howto.querySelectorAll<HTMLElement>(".dots span")];
+const next = $<HTMLButtonElement>("#howto-next");
+let slide = 0;
 
-  // Draw the shot back like a player would, then let go.
-  const start = performance.now();
-  await new Promise<void>((done) => {
-    const pull = (now: number) => {
-      if (token !== gameToken) return done();
-      const t = Math.min(1, (now - start) / AIM_PREVIEW_MS);
-      game.previewAim(shot, 1 - (1 - t) ** 3);
-      dirty = true;
-      if (t < 1) requestAnimationFrame(pull);
-      else done();
-    };
-    requestAnimationFrame(pull);
-  });
-  if (token !== gameToken) return;
-  game.fire(shot);
+function showSlide(i: number): void {
+  slide = i;
+  slides.forEach((s, j) => (s.hidden = j !== i));
+  dots.forEach((d, j) => d.classList.toggle("on", j === i));
+  next.textContent = i === slides.length - 1 ? "Let's play" : "Next";
 }
 
-// --- Input ----------------------------------------------------------------
+function openHowTo(): void {
+  showSlide(0);
+  howto.hidden = false;
+  next.focus();
+}
 
-let aimingPointer: number | null = null;
+function closeHowTo(): void {
+  howto.hidden = true;
+  save("zeni.seenHowTo", "1");
+}
 
-canvas.addEventListener("pointerdown", (e) => {
-  if (aimingPointer !== null || isComputerTurn()) return;
-  if (!game.startAim(view.toBoard(e.clientX, e.clientY))) return;
-  aimingPointer = e.pointerId;
-  canvas.setPointerCapture(e.pointerId);
-  canvas.style.cursor = "grabbing";
-  dirty = true;
+next.addEventListener("click", () => (slide < slides.length - 1 ? showSlide(slide + 1) : closeHowTo()));
+$("#howto-skip").addEventListener("click", closeHowTo);
+$("#open-howto").addEventListener("click", openHowTo);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !howto.hidden) closeHowTo();
 });
 
-canvas.addEventListener("pointermove", (e) => {
-  const p = view.toBoard(e.clientX, e.clientY);
-  if (e.pointerId === aimingPointer) {
-    game.moveAim(p);
-    dirty = true;
-  } else if (e.pointerType === "mouse" && aimingPointer === null) {
-    canvas.style.cursor = !isComputerTurn() && game.coinAt(p) ? "grab" : "default";
-  }
-});
+// --- Start ----------------------------------------------------------------
 
-function endAim(e: PointerEvent, fire: boolean): void {
-  if (e.pointerId !== aimingPointer) return;
-  aimingPointer = null;
-  canvas.style.cursor = "default";
-  if (fire) game.releaseAim();
-  else game.cancelAim();
-  dirty = true;
+// Dev shortcut: ?opponent=friend|beginner|skilled|master&difficulty=hard jumps straight into a game.
+const params = new URLSearchParams(location.search);
+const direct = params.get("opponent");
+if (direct === "friend" || AI_LEVELS.includes(direct as AiLevel)) {
+  if (params.get("difficulty") === "hard") table = "hard";
+  play(direct as Opponent);
+} else {
+  show("home");
+  if (load("zeni.seenHowTo", ["1", "0"] as const, "0") === "0") openHowTo();
 }
-
-canvas.addEventListener("pointerup", (e) => endAim(e, true));
-canvas.addEventListener("pointercancel", (e) => endAim(e, false));
-
-// --- Loop -----------------------------------------------------------------
-
-new ResizeObserver(() => {
-  if (view.resize()) dirty = true;
-}).observe(wrap);
-
-let last = performance.now();
-function frame(now: number): void {
-  const moving = game.update((now - last) / 1000, now);
-  last = now;
-  if (moving || dirty) {
-    renderer.draw(game, now);
-    dirty = false;
-  }
-  requestAnimationFrame(frame);
-}
-
-view.resize();
-startGame();
-requestAnimationFrame(frame);

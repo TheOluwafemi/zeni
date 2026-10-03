@@ -20,7 +20,8 @@ const CUP_SPACING = CUP_RADIUS * 2 + COIN_RADIUS * 2; // a coin can always pass 
 const CUP_CLEARANCE = CUP_RADIUS + COIN_RADIUS + 30;
 const FREE_DIST = COIN_RADIUS * 2 + FREE_GAP;
 
-export function newGame(seed: number, difficulty: Difficulty = "easy"): GameState {
+/** `first` picks who shoots first (e.g. alternating in a rematch); otherwise the seed decides. */
+export function newGame(seed: number, difficulty: Difficulty = "easy", first?: Seat): GameState {
   const rng = mulberry32(seed);
   // Uniform over a disc, `margin` in from the table edge.
   const place = (margin: number) => {
@@ -58,7 +59,7 @@ export function newGame(seed: number, difficulty: Difficulty = "easy"): GameStat
     coins,
     cups,
     scores: [0, 0],
-    turn: rng() < 0.5 ? 0 : 1,
+    turn: first ?? (rng() < 0.5 ? 0 : 1),
     shooter: null,
     shots: 0,
     status: "playing",

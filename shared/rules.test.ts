@@ -42,6 +42,13 @@ describe("newGame", () => {
     expect(newGame(42, difficulty)).toEqual(g);
     expect(newGame(43, difficulty)).not.toEqual(g);
   });
+
+  test("can choose who goes first without changing the layout", () => {
+    const a = newGame(7, "easy", 0);
+    const b = newGame(7, "easy", 1);
+    expect([a.turn, b.turn]).toEqual([0, 1]);
+    expect(a.coins).toEqual(b.coins);
+  });
 });
 
 describe("isFree / legalShot", () => {

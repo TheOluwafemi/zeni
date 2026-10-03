@@ -1,5 +1,5 @@
 import { COIN_RADIUS, CUP_RADIUS, MIN_POWER } from "../../shared/constants";
-import { GHOST_MS, type Ghost, type LocalGame } from "./local-game";
+import { FALL_MS, type Ghost, type LocalGame } from "./local-game";
 import { makeBoardBackground, makeCoinSprite, makeCupSprite, makeShadowSprite, METAL_COUNT } from "./sprites";
 import type { BoardView } from "./view";
 
@@ -64,20 +64,13 @@ export class Renderer {
     if (game.aim) this.drawAim(game);
   }
 
+  /** A coin tipping over the edge: keeps sliding, drops away and fades. */
   private drawGhost(g: Ghost, now: number): void {
-    const { ctx } = this.view;
-    const t = Math.min(1, (now - g.start) / GHOST_MS[g.kind]);
-    if (g.kind === "capture") {
-      // Lifts off the table into the player's tray.
-      ctx.globalAlpha = 1 - t;
-      this.stamp(g.metal, g.x, g.y - 40 * t, g.rotation, 1 + 0.5 * t);
-      return;
-    }
-    // Tips over the edge and drops to the floor: keeps sliding, falls away and fades.
-    const s = (t * GHOST_MS.fall) / 1000;
+    const t = Math.min(1, (now - g.start) / FALL_MS);
+    const s = (t * FALL_MS) / 1000;
     const x = g.x + g.vx * s * 0.5;
     const y = g.y + g.vy * s * 0.5 + 120 * t * t;
-    ctx.globalAlpha = 1 - t;
+    this.view.ctx.globalAlpha = 1 - t;
     this.stamp(g.metal, x, y, g.rotation + t * 2, 1 - 0.45 * t);
   }
 
