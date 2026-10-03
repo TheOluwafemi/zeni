@@ -4,6 +4,7 @@ import { AI_LEVELS, type AiLevel } from "../shared/ai";
 import type { Difficulty } from "../shared/constants";
 import { sound } from "./audio";
 import { start, setOnExit, type Opponent } from "./game-screen";
+import { refreshPlayer } from "./account";
 import { setupInstall } from "./install";
 import { makeCoinSprite } from "./game/sprites";
 
@@ -38,6 +39,7 @@ let table: Difficulty = load("zeni.table", ["easy", "hard"] as const, "easy");
 function show(screen: "home" | "game"): void {
   home.hidden = screen !== "home";
   gameScreen.hidden = screen !== "game";
+  if (screen === "home") void refreshPlayer(); // ratings change after online games
 }
 
 function play(opponent: Opponent): void {

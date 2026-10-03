@@ -4,5 +4,6 @@
     "lib": ["ES2022"],
     "types": []
   },
-  "include": ["server", "shared", "worker-configuration.d.ts"]
+  "include": ["server", "shared", "worker-configuration.d.ts"],
+  "exclude": ["server/**/*.test.ts", "server/test-db.ts"]
 }

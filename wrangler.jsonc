@@ -8,6 +8,15 @@
     // API and WebSocket routes go to the Worker; everything else is the static client.
     "run_worker_first": ["/api/*", "/ws/*"]
   },
+  // Player accounts and (later) match results. No database_id on purpose: `wrangler dev` uses a
+  // local copy, and the first deploy offers to create the real one.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "zeni",
+      "migrations_dir": "migrations"
+    }
+  ],
   "observability": {
     "enabled": true
   }

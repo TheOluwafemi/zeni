@@ -42,6 +42,24 @@
           </div>
         </div>
 
+        <div class="card" id="player-card">
+          <h2>Your player</h2>
+          <div id="player-out">
+            <p class="muted">Online play needs a player: just a nickname. No email, no password.</p>
+            <div class="row">
+              <button type="button" class="primary" id="create-player">Create player</button>
+              <button type="button" id="restore-player">I have a code</button>
+            </div>
+          </div>
+          <div id="player-in" hidden>
+            <div class="who">
+              <strong id="player-name"></strong>
+              <span id="player-rating" class="muted"></span>
+            </div>
+            <button type="button" id="open-settings">Settings</button>
+          </div>
+        </div>
+
         <div class="row">
           <button type="button" id="open-howto">How to play</button>
           <button type="button" id="toggle-sound" aria-pressed="true">Sound on</button>
@@ -140,6 +158,76 @@
           <button type="button" id="howto-skip" class="ghost">Skip</button>
           <button type="button" class="primary" id="howto-next">Next</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Create a player -->
+    <div id="sheet-create" class="overlay" hidden>
+      <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="create-title">
+        <form id="create-form" novalidate>
+          <h3 id="create-title" class="title">Pick a nickname</h3>
+          <p class="muted">Other players will see it. 3–16 letters, numbers or _.</p>
+          <input id="create-nickname" class="field" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="create-status" />
+          <p id="create-status" class="status" aria-live="polite"></p>
+          <div class="row">
+            <button type="button" class="ghost" id="create-cancel">Cancel</button>
+            <button type="submit" class="primary" id="create-submit" disabled>Create</button>
+          </div>
+          <button type="button" class="link" id="create-to-restore">I already have a player code</button>
+        </form>
+        <div id="create-done" hidden>
+          <h3 class="title">You're in, <span id="done-name"></span></h3>
+          <p class="muted">This is your player code. It's the only way to get your player back on another device or if this browser is cleared. Save it somewhere safe.</p>
+          <input id="done-code" class="field code" readonly aria-label="Your player code" />
+          <div class="row">
+            <button type="button" id="done-copy">Copy code</button>
+            <button type="button" class="primary" id="done-close">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restore a player -->
+    <div id="sheet-restore" class="overlay" hidden>
+      <form class="card dialog" id="restore-form" role="dialog" aria-modal="true" aria-labelledby="restore-title" novalidate>
+        <h3 id="restore-title" class="title">Use your player code</h3>
+        <p class="muted">Paste the code from your other device.</p>
+        <input id="restore-code" class="field code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ZENI-XXXX-XXXX-XXXX-XXXX" aria-describedby="restore-status" />
+        <p id="restore-status" class="status" aria-live="polite"></p>
+        <div class="row">
+          <button type="button" class="ghost" id="restore-cancel">Cancel</button>
+          <button type="submit" class="primary" id="restore-submit">Restore</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Settings -->
+    <div id="sheet-settings" class="overlay" hidden>
+      <div class="card dialog settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <h3 id="settings-title" class="title">Your player</h3>
+
+        <form id="rename-form" novalidate>
+          <label for="rename-nickname" class="label">Nickname</label>
+          <div class="row">
+            <input id="rename-nickname" class="field" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            <button type="submit" id="rename-submit">Save</button>
+          </div>
+          <p id="rename-status" class="status" aria-live="polite"></p>
+        </form>
+
+        <div class="block">
+          <span class="label">Player code</span>
+          <input id="settings-code" class="field code" readonly type="password" aria-label="Your player code" />
+          <p class="muted small">Anyone with this code can play as you. Don't share it.</p>
+          <div class="row">
+            <button type="button" id="code-show" aria-pressed="false">Show</button>
+            <button type="button" id="code-copy">Copy</button>
+          </div>
+          <button type="button" class="wide" id="code-rotate">Get a new code</button>
+          <p id="code-status" class="status" aria-live="polite"></p>
+        </div>
+
+        <button type="button" class="primary wide" id="settings-close">Done</button>
       </div>
     </div>
 
