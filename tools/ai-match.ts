@@ -24,6 +24,8 @@ const difficulty = args.difficulty as Difficulty;
 
 type Player = AiLevel | "casual human";
 const thinkMs: Record<AiLevel, number[]> = { beginner: [], skilled: [], master: [] };
+/** Coins kept in each turn, per level: how long its runs are. */
+const runs: Record<AiLevel, number[]> = { beginner: [], skilled: [], master: [] };
 
 function shotFor(p: Player, state: GameState, rng: () => number): Shot {
   if (p === "casual human") return botShot(state, rng, 0.08, DEFAULT_PHYSICS);
@@ -42,9 +44,17 @@ function match(a: Player, b: Player): number {
     // Seat 0 is `a` on even games, `b` on odd games, so neither always goes first.
     const players: Record<Seat, Player> = g % 2 === 0 ? { 0: a, 1: b } : { 0: b, 1: a };
     const aSeat: Seat = g % 2 === 0 ? 0 : 1;
+    let run = 0;
     while (state.status === "playing") {
-      const shot = shotFor(players[state.turn], state, rng);
-      state = resolveShot(state, shot, simulateShot(state, shot)).state;
+      const p = players[state.turn];
+      const shot = shotFor(p, state, rng);
+      const { state: next, outcome } = resolveShot(state, shot, simulateShot(state, shot));
+      if (outcome.captured !== null) run++;
+      if (!outcome.again || next.status === "over") {
+        if (p !== "casual human") runs[p].push(run);
+        run = 0;
+      }
+      state = next;
     }
     points += state.winner === "draw" ? 0.5 : state.winner === aSeat ? 1 : 0;
   }
@@ -70,11 +80,15 @@ console.table(table);
 const think: Record<string, Record<string, string>> = {};
 for (const level of AI_LEVELS) {
   const xs = [...thinkMs[level]].sort((p, q) => p - q);
+  const r = runs[level];
   think[level] = {
+    "coins kept per turn": (r.reduce((a, b) => a + b, 0) / r.length).toFixed(2),
+    "turns keeping 3+": `${Math.round((r.filter((n) => n >= 3).length / r.length) * 100)}%`,
+    "longest run": String(Math.max(...r)),
     "median ms": xs[Math.floor(xs.length / 2)].toFixed(0),
     "p95 ms": xs[Math.floor(xs.length * 0.95)].toFixed(0),
     "max ms": xs[xs.length - 1].toFixed(0),
   };
 }
-console.log("\nThinking time per shot (Node, this machine):");
+console.log("\nRuns and thinking time per level (Node, this machine):");
 console.table(think);

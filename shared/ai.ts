@@ -30,9 +30,11 @@ interface LevelSpec {
 }
 
 const LEVELS: Record<AiLevel, LevelSpec> = {
-  beginner: { aimNoise: 0.1, powerNoise: 0.18, pickFrom: 6, robustTop: 0, robustSamples: 0, defend: 0 },
-  skilled: { aimNoise: 0.055, powerNoise: 0.1, pickFrom: 2, robustTop: 6, robustSamples: 3, defend: 0.5 },
-  master: { aimNoise: 0.03, powerNoise: 0.06, pickFrom: 1, robustTop: 12, robustSamples: 5, defend: 1 },
+  // Tuned against real play: earlier Master kept ~3 coins a turn and felt unbeatable.
+  // Targets: about 0.6 / 1.0 / 1.6 coins kept per turn.
+  beginner: { aimNoise: 0.18, powerNoise: 0.3, pickFrom: 6, robustTop: 0, robustSamples: 0, defend: 0 },
+  skilled: { aimNoise: 0.09, powerNoise: 0.16, pickFrom: 2, robustTop: 6, robustSamples: 3, defend: 0.5 },
+  master: { aimNoise: 0.08, powerNoise: 0.14, pickFrom: 1, robustTop: 12, robustSamples: 5, defend: 1 },
 };
 
 const CUT_FRACTIONS = [-0.5, -0.25, 0, 0.25, 0.5];
