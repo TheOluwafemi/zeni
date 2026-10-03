@@ -1,0 +1,119 @@
+// A scripted player for testing online play: registers, connects to a room and takes its turns.
+// Used by play-online.ts (automated checks) and bot-room.ts (to play against from the browser).
+
+import { DEFAULT_PHYSICS } from "../shared/constants";
+import type { ClientMsg, OverInfo, ServerMsg } from "../shared/protocol";
+import { mulberry32 } from "../shared/rng";
+import type { GameState } from "../shared/types";
+import { botShot } from "./bot";
+
+export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export interface Server {
+  base: string;
+  ws: string;
+}
+export function server(base: string): Server {
+  return { base, ws: base.replace(/^http/, "ws") };
+}
+
+export async function register(srv: Server, nickname: string): Promise<{ code: string; playerId: string }> {
+  const res = await fetch(`${srv.base}/api/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ nickname }),
+  });
+  if (res.status !== 201) throw new Error(`register ${nickname}: ${res.status} ${await res.text()}`);
+  return (await res.json()) as { code: string; playerId: string };
+}
+
+export async function me(srv: Server, code: string): Promise<{ rating: number; games: number; wins: number; losses: number }> {
+  return (await fetch(`${srv.base}/api/me`, { headers: { Authorization: `Bearer ${code}` } })).json() as never;
+}
+
+/** A bot player connected to a room. Plays whenever it's its turn. */
+export class Bot {
+  ws!: WebSocket;
+  seat: 0 | 1 = 0;
+  state: GameState | null = null;
+  inbox: ServerMsg[] = [];
+  closed: { code: number } | null = null;
+  over: OverInfo | null = null;
+  shots = 0;
+  autoplay = true;
+  /** Pause before each shot, so a person watching can follow. */
+  thinkMs = 15;
+  private sentFor = -1;
+  private rng: () => number;
+
+  constructor(
+    readonly srv: Server,
+    readonly name: string,
+    readonly playerCode: string,
+    seed: number,
+  ) {
+    this.rng = mulberry32(seed);
+  }
+
+  connect(room: string, create?: "easy" | "hard"): Promise<void> {
+    this.closed = null;
+    this.ws = new WebSocket(`${this.srv.ws}/ws/room/${room}`);
+    this.ws.addEventListener("message", (e) => this.onMessage(JSON.parse(String(e.data)) as ServerMsg));
+    this.ws.addEventListener("close", (e) => (this.closed = { code: e.code }));
+    return new Promise((resolve, reject) => {
+      this.ws.addEventListener("open", () => {
+        this.send({ t: "hello", code: this.playerCode, create });
+        resolve();
+      });
+      this.ws.addEventListener("error", () => reject(new Error(`${this.name}: socket error`)));
+    });
+  }
+
+  send(m: ClientMsg): void {
+    this.ws.send(JSON.stringify(m));
+  }
+
+  private onMessage(m: ServerMsg): void {
+    this.inbox.push(m);
+    if (m.t === "welcome") {
+      this.seat = m.you;
+      this.state = m.state;
+      this.over = m.over;
+    } else if (m.t === "start") this.state = m.state;
+    else if (m.t === "shot" || m.t === "turn") this.state = m.state;
+    else if (m.t === "over") this.over = m.over;
+    if (m.t === "start") this.over = null;
+    void this.maybePlay();
+  }
+
+  /** Take a turn now if it's ours (bots otherwise only act when a message arrives). */
+  async maybePlay(): Promise<void> {
+    const s = this.state;
+    if (!this.autoplay || !s || s.status !== "playing" || s.turn !== this.seat || this.over) return;
+    if (this.sentFor === s.shots) return;
+    this.sentFor = s.shots;
+    await sleep(this.thinkMs);
+    const shot = botShot(s, this.rng, 0.1, DEFAULT_PHYSICS);
+    this.shots++;
+    this.send({ t: "shot", seq: s.shots, ...shot });
+  }
+
+  async waitFor<T extends ServerMsg["t"]>(t: T, ms = 8000, from = 0): Promise<Extract<ServerMsg, { t: T }>> {
+    const start = Date.now();
+    for (;;) {
+      const found = this.inbox.slice(from).find((m) => m.t === t);
+      if (found) return found as Extract<ServerMsg, { t: T }>;
+      if (Date.now() - start > ms) throw new Error(`${this.name}: timed out waiting for "${t}"`);
+      await sleep(10);
+    }
+  }
+
+  async waitUntil(pred: () => boolean, ms = 60_000, what = "condition"): Promise<void> {
+    const start = Date.now();
+    while (!pred()) {
+      if (Date.now() - start > ms) throw new Error(`${this.name}: timed out waiting for ${what}`);
+      await sleep(20);
+    }
+  }
+}
+

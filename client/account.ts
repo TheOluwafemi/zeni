@@ -68,6 +68,14 @@ export function currentPlayer(): Me | null {
   return me;
 }
 
+/** Fired whenever a signed-in player has been loaded (after sign-up, restore, or opening the app). */
+export const PLAYER_READY = "zeni:player-ready";
+
+/** Ask the person to create or restore a player, for things that need one. */
+export function promptForPlayer(): void {
+  showCreate();
+}
+
 function renderCard(): void {
   $("#player-out").hidden = me !== null;
   $("#player-in").hidden = me === null;
@@ -91,6 +99,7 @@ export async function refreshPlayer(): Promise<void> {
     }
   }
   renderCard();
+  if (me) window.dispatchEvent(new Event(PLAYER_READY));
 }
 
 window.addEventListener(SIGNED_OUT, () => {

@@ -28,5 +28,19 @@ export function testDb(): Db {
       return stmt.run(params);
     },
   });
-  return { prepare: (sql) => statement(sql) };
+  return {
+    prepare: (sql) => statement(sql),
+    batch: async (statements) => {
+      sqlite.exec("BEGIN");
+      try {
+        const results = [];
+        for (const s of statements) results.push(await s.run());
+        sqlite.exec("COMMIT");
+        return results;
+      } catch (e) {
+        sqlite.exec("ROLLBACK");
+        throw e;
+      }
+    },
+  };
 }

@@ -3,8 +3,9 @@
 import { AI_LEVELS, type AiLevel } from "../shared/ai";
 import type { Difficulty } from "../shared/constants";
 import { sound } from "./audio";
-import { start, setOnExit, type Opponent } from "./game-screen";
-import { refreshPlayer } from "./account";
+import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
+import { start, startOnline, setOnExit, type Opponent } from "./game-screen";
+import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
 import { setupInstall } from "./install";
 import { makeCoinSprite } from "./game/sprites";
 
@@ -99,6 +100,50 @@ brand.style.width = brand.style.height = `${brandSize}px`;
 const art = makeCoinSprite(1, (brandSize * dpr * 0.94) / 72); // 72 = coin diameter in board units
 brand.getContext("2d")!.drawImage(art, (brand.width - art.width) / 2, (brand.height - art.height) / 2);
 
+// --- Online rooms ---------------------------------------------------------
+
+/** Run `action` once this device has a player, asking for one first if it doesn't. */
+let pendingAction: (() => void) | null = null;
+function needPlayer(action: () => void): void {
+  if (currentPlayer()) return action();
+  pendingAction = action;
+  promptForPlayer();
+}
+window.addEventListener(PLAYER_READY, () => {
+  const action = pendingAction;
+  pendingAction = null;
+  action?.();
+});
+
+function joinRoom(code: string): void {
+  sound.unlock();
+  show("game");
+  startOnline(code, null);
+}
+
+$("#online-create").addEventListener("click", () =>
+  needPlayer(() => {
+    sound.unlock();
+    show("game");
+    startOnline(newRoomCode(), table);
+  }),
+);
+
+const joinInput = $<HTMLInputElement>("#online-code");
+const joinStatus = $("#online-status");
+$("#online-join").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const code = normalizeRoomCode(joinInput.value);
+  if (!code) {
+    joinStatus.textContent = "Room codes are 5 letters and numbers.";
+    joinStatus.className = "status bad";
+    return;
+  }
+  joinStatus.textContent = "";
+  needPlayer(() => joinRoom(code));
+});
+joinInput.addEventListener("input", () => (joinStatus.textContent = ""));
+
 // --- How to play ----------------------------------------------------------
 
 const slides = [...howto.querySelectorAll<HTMLElement>(".slides li")];
@@ -133,10 +178,19 @@ document.addEventListener("keydown", (e) => {
 
 // --- Start ----------------------------------------------------------------
 
+// A shared link (/r/K7QXM) goes straight into that room, after making sure there's a player.
+const sharedRoom = normalizeRoomCode(location.pathname.match(/^\/r\/([^/]+)\/?$/)?.[1] ?? "");
+
 // Dev shortcut: ?opponent=friend|beginner|skilled|master&difficulty=hard jumps straight into a game.
 const params = new URLSearchParams(location.search);
 const direct = params.get("opponent");
-if (direct === "friend" || AI_LEVELS.includes(direct as AiLevel)) {
+if (sharedRoom) {
+  show("home");
+  pendingAction = () => joinRoom(sharedRoom);
+  void refreshPlayer().then(() => {
+    if (!currentPlayer()) promptForPlayer(); // PLAYER_READY then runs the join
+  });
+} else if (direct === "friend" || AI_LEVELS.includes(direct as AiLevel)) {
   if (params.get("difficulty") === "hard") table = "hard";
   play(direct as Opponent);
 } else {

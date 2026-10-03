@@ -17,6 +17,13 @@
       "migrations_dir": "migrations"
     }
   ],
+  // One Durable Object per game room. It holds both players' sockets and plays every shot.
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+  },
+  "exports": {
+    "Room": { "type": "durable-object", "storage": "sqlite" }
+  },
   "observability": {
     "enabled": true
   }

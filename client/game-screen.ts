@@ -1,17 +1,20 @@
 import type { AiLevel } from "../shared/ai";
-import { COIN_RADIUS, type Difficulty } from "../shared/constants";
+import { COIN_RADIUS, DEFAULT_PHYSICS, type Difficulty } from "../shared/constants";
+import { TURN_MS, type OverInfo, type Players, type ServerMsg } from "../shared/protocol";
+import { newRoomCode } from "../shared/room-code";
 import { randomSeed } from "../shared/rng";
-import { other } from "../shared/rules";
-import type { Seat } from "../shared/types";
+import { newGame, other } from "../shared/rules";
+import type { GameState, Seat } from "../shared/types";
 import { sound } from "./audio";
+import { RoomClient, type Fatal, type Link } from "./net";
 import { ComputerPlayer } from "./game/computer";
 import { LocalGame, type Resolved } from "./game/local-game";
 import { Renderer } from "./game/render";
 import { BoardView } from "./game/view";
 import { mountTuning } from "./tune";
 
-/** Who sits in seat 1: a friend on the same device, or the computer at some level. */
-export type Opponent = "friend" | AiLevel;
+/** Who sits in seat 1: a friend on the same device, the computer at some level, or someone online. */
+export type Opponent = "friend" | AiLevel | "online";
 export interface Setup {
   opponent: Opponent;
   difficulty: Difficulty;
@@ -27,6 +30,9 @@ const canvas = $<HTMLCanvasElement>("#board");
 const wrap = $("#board-wrap");
 const message = $("#message");
 const result = $("#result");
+const lobby = $("#sheet-lobby");
+const notice = $("#notice");
+const conn = $("#conn");
 const bars = [0, 1].map((seat) => $(`.player[data-seat="${seat}"]`));
 
 const params = new URLSearchParams(location.search);
@@ -47,6 +53,24 @@ let gameToken = 0;
 /** Pips shown per seat, so only new ones animate in. */
 const shownPips = [0, 0];
 
+/** The online room this device is in, if any. */
+interface Online {
+  client: RoomClient;
+  code: string;
+  /** What this device asked for, so a code clash can be retried. */
+  created: Difficulty | null;
+  seat: Seat;
+  players: Players;
+  status: "waiting" | "playing" | "over";
+  over: OverInfo | null;
+  rematch: [boolean, boolean];
+}
+let online: Online | null = null;
+/** When the current turn runs out, by this device's clock. */
+let deadlineAt: number | null = null;
+/** Why the online game ended, for the result card (the rematch line is added beneath it). */
+let resultReason = "";
+
 if (params.has("tune")) mountTuning($("#tune"), game.physics);
 
 /** Called when the player leaves the game for the home screen. */
@@ -57,11 +81,15 @@ export function setOnExit(fn: () => void): void {
 
 // --- Names and wording ---------------------------------------------------
 
-const vsComputer = () => setup.opponent !== "friend";
-const isYou = (seat: Seat) => vsComputer() && seat !== COMPUTER_SEAT;
+const isOnline = () => setup.opponent === "online";
+const vsComputer = () => setup.opponent !== "friend" && setup.opponent !== "online";
+/** The seat this device plays, or null when everyone shares the device. */
+const youSeat = (): Seat | null => (isOnline() ? (online?.seat ?? null) : vsComputer() ? 0 : null);
+const isYou = (seat: Seat) => youSeat() === seat;
 const isComputerTurn = () => vsComputer() && game.state.turn === COMPUTER_SEAT;
 
 function name(seat: Seat): string {
+  if (isOnline()) return isYou(seat) ? "You" : (online?.players[seat]?.nickname ?? "Opponent");
   if (!vsComputer()) return seat === 0 ? "Player 1" : "Player 2";
   return seat === COMPUTER_SEAT ? "Computer" : "You";
 }
@@ -78,8 +106,9 @@ function updateBars(opts: { thinking?: boolean; awaiting?: Seat } = {}): void {
   bars.forEach((bar, i) => {
     const seat = i as Seat;
     bar.classList.toggle("active", status === "playing" && turn === seat);
+    const dropped = isOnline() && online?.players[seat]?.connected === false;
     bar.querySelector(".name")!.textContent =
-      name(seat) + (opts.thinking && seat === COMPUTER_SEAT ? " · thinking…" : "");
+      name(seat) + (opts.thinking && seat === COMPUTER_SEAT ? " · thinking…" : "") + (dropped ? " · reconnecting…" : "");
     bar.querySelector(".score")!.textContent = String(scores[seat]);
 
     const pips = bar.querySelector(".pips")!;
@@ -135,12 +164,18 @@ function flyToTray(kept: NonNullable<Resolved["kept"]>, seat: Seat): Promise<voi
 // --- Game flow ------------------------------------------------------------
 
 export function start(next: Setup, rematch = false): void {
+  leaveRoom();
   setup = next;
   gameToken++;
   running = true;
+  game.controlledSeat = null;
+  game.awaitServer = false;
   firstPlayer = rematch ? other(firstPlayer) : (Math.random() < 0.5 ? 0 : 1);
   game.reset(nextSeed(), setup.difficulty, firstPlayer);
   result.hidden = true;
+  $<HTMLButtonElement>("#rematch").disabled = false;
+  $<HTMLButtonElement>("#rematch").textContent = "Rematch";
+  $("#result-rating").textContent = "";
   shownPips[0] = shownPips[1] = 0;
   for (const bar of bars) bar.querySelector(".pips")!.replaceChildren();
   $("#game-label").textContent =
@@ -155,6 +190,7 @@ export function start(next: Setup, rematch = false): void {
 }
 
 export function stop(): void {
+  leaveRoom();
   running = false;
   gameToken++;
   game.cancelAim();
@@ -178,6 +214,9 @@ function showResult(): void {
 }
 
 game.onFire = (shot) => sound.flick(shot.power);
+game.onLocalShot = (shot, seq) => {
+  if (isOnline()) online?.client.send({ t: "shot", seq, coinId: shot.coinId, angle: shot.angle, power: shot.power });
+};
 game.onSimEvents = (events) => sound.events(events);
 
 game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
@@ -187,12 +226,13 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
   const landed = kept ? flyToTray(kept, shooter) : Promise.resolve();
   if (kept) {
     sound.keep();
-    if (isYou(shooter) || !vsComputer()) navigator.vibrate?.(12);
+    if (youSeat() === null || isYou(shooter)) navigator.vibrate?.(12);
   }
 
-  if (game.state.status === "over") {
+  // Online, the server announces the end of the game (with ratings); show the card once the last shot has played.
+  if (game.state.status === "over" || (isOnline() && online?.over)) {
     say("Game over.");
-    void landed.then(() => setTimeout(() => token === gameToken && showResult(), 250));
+    void landed.then(() => setTimeout(() => token === gameToken && (isOnline() ? showOnlineResult() : showResult()), 250));
     return;
   }
 
@@ -200,7 +240,7 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
   const fellText = fell === 1 ? "A coin fell off the table" : `${fell} coins fell off the table`;
   const handedOver = `${gets(them)} ${fell === 1 ? "it" : "them"}.`;
   if (outcome.again) {
-    say(isYou(shooter) || !vsComputer()
+    say(youSeat() === null || isYou(shooter)
       ? `${keeps(shooter)} a coin! Shoot again with the same coin.`
       : `${keeps(shooter)} a coin and goes again with the same coin.`);
   } else if (outcome.blocked) {
@@ -217,17 +257,293 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
   void playComputerTurn();
 };
 
-$("#rematch").addEventListener("click", () => start(setup, true));
+$("#rematch").addEventListener("click", () => {
+  if (isOnline() && online) {
+    online.rematch[online.seat] = true; // show it straight away; the server confirms
+    online.client.send({ t: "rematch" });
+    renderRematch();
+  } else {
+    start(setup, true);
+  }
+});
 $("#result-home").addEventListener("click", () => {
   stop();
   onExit();
 });
-$("#leave").addEventListener("click", () => {
-  const midGame = game.state.status === "playing" && game.state.shots > 0;
-  if (midGame && !confirm("Leave this game? It won't be saved.")) return;
+function leaveGame(): void {
+  const live = isOnline() ? online?.status === "playing" : game.state.status === "playing" && game.state.shots > 0;
+  const warning = isOnline() ? "Leave this game? You'll forfeit it and lose rating." : "Leave this game? It won't be saved.";
+  if (live && !confirm(warning)) return;
+  if (isOnline() && online?.status === "playing") online.client.send({ t: "resign" });
+  stop();
+  onExit();
+}
+$("#leave").addEventListener("click", leaveGame);
+$("#lobby-cancel").addEventListener("click", leaveGame);
+function roomLink(): string {
+  return `${location.origin}/r/${online?.code ?? ""}`;
+}
+$("#lobby-copy").addEventListener("click", async (e) => {
+  const button = e.currentTarget as HTMLButtonElement;
+  const label = button.textContent;
+  try {
+    await navigator.clipboard.writeText(roomLink());
+    button.textContent = "Copied";
+  } catch {
+    button.textContent = "Copy failed";
+  }
+  setTimeout(() => (button.textContent = label), 1500);
+});
+$("#lobby-share").addEventListener("click", async () => {
+  const code = online?.code ?? "";
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "Zeni", text: `Play me at Zeni! Room ${code}`, url: roomLink() });
+    } else {
+      await navigator.clipboard.writeText(roomLink());
+      $("#lobby-share").textContent = "Link copied";
+      setTimeout(() => ($("#lobby-share").textContent = "Share"), 1500);
+    }
+  } catch {
+    // The person closed the share sheet; nothing to do.
+  }
+});
+$("#notice-home").addEventListener("click", () => {
   stop();
   onExit();
 });
+
+
+// --- Online rooms ---------------------------------------------------------
+
+/** An empty round table, shown while waiting for an opponent. */
+function emptyTable(difficulty: Difficulty): GameState {
+  return { ...newGame(1, difficulty), coins: [] };
+}
+
+/** Join or create a room. `create` is the table to open a new room with, or null to join an existing one. */
+export function startOnline(code: string, create: Difficulty | null, attempt = 0): void {
+  stop();
+  const token = ++gameToken;
+  running = true;
+  setup = { opponent: "online", difficulty: create ?? "easy" };
+  game.physics = { ...DEFAULT_PHYSICS }; // both players must simulate with the same numbers
+  game.controlledSeat = 0;
+  game.awaitServer = true;
+  game.load(emptyTable(setup.difficulty));
+  result.hidden = true;
+  notice.hidden = true;
+  lobby.hidden = true;
+  shownPips[0] = shownPips[1] = 0;
+  for (const bar of bars) bar.querySelector(".pips")!.replaceChildren();
+  $("#game-label").textContent = `Room ${code}`;
+
+  const client = new RoomClient(code, create, {
+    message: (m) => token === gameToken && onServer(m),
+    link: (l) => token === gameToken && showLink(l),
+    fatal: (reason) => {
+      if (token !== gameToken) return;
+      // Someone else already has this code: try another.
+      if (reason === "room_exists" && create && attempt < 3) return startOnline(newRoomCode(), create, attempt + 1);
+      showFatal(reason);
+    },
+  });
+  online = { client, code, created: create, seat: 0, players: [null, null], status: "waiting", over: null, rematch: [false, false] };
+  say(create ? "Opening your room…" : "Joining…");
+  updateBars();
+  dirty = true;
+  requestAnimationFrame(() => view.resize() && (dirty = true));
+  history.replaceState(null, "", `/r/${code}`); // a reload rejoins the same room
+  client.connect();
+}
+
+function leaveRoom(): void {
+  if (!online) return;
+  online.client.leave();
+  online = null;
+  deadlineAt = null;
+  game.controlledSeat = null;
+  game.awaitServer = false;
+  lobby.hidden = true;
+  notice.hidden = true;
+  conn.hidden = true;
+  if (location.pathname.startsWith("/r/")) history.replaceState(null, "", "/");
+}
+
+function showLink(l: Link): void {
+  conn.hidden = l !== "reconnecting";
+}
+
+function showFatal(reason: Fatal): void {
+  const copy: Record<string, [string, string]> = {
+    no_room: ["Room not found", "Check the code with your friend. Rooms close after a while if nobody plays."],
+    room_full: ["That room is full", "Two people are already playing in it."],
+    unauthorized: ["Sign in again", "This device's player code isn't valid. Restore your player from the home screen."],
+    signed_out: ["Sign in again", "This device has no player code. Create or restore your player from the home screen."],
+    gave_up: ["Connection lost", "We couldn't get back in. If the game was still going, you may have forfeited it."],
+  };
+  const [title, text] = copy[reason] ?? ["Something went wrong", "Go back and try again."];
+  $("#notice-title").textContent = title;
+  $("#notice-text").textContent = text;
+  lobby.hidden = true;
+  notice.hidden = false;
+  $<HTMLButtonElement>("#notice-home").focus();
+}
+
+function onServer(msg: ServerMsg): void {
+  const o = online;
+  if (!o) return;
+  const resetPips = (state: GameState) => {
+    shownPips[0] = state.scores[0];
+    shownPips[1] = state.scores[1];
+  };
+
+  switch (msg.t) {
+    case "welcome": {
+      // Sent on joining and on every reconnect: adopt the server's picture of the room.
+      o.seat = msg.you;
+      o.players = msg.players;
+      o.status = msg.room.status;
+      o.over = msg.over;
+      o.rematch = msg.rematch;
+      game.controlledSeat = msg.you;
+      setup.difficulty = msg.room.table;
+      $("#game-label").textContent = `Room ${o.code} · ${msg.room.table === "easy" ? "Easy" : "Hard"} table`;
+      const state = msg.state ?? emptyTable(msg.room.table);
+      game.load(state);
+      resetPips(state);
+      deadlineAt = msg.deadlineIn === null ? null : Date.now() + msg.deadlineIn;
+      updateBars();
+      lobby.hidden = msg.room.status !== "waiting";
+      if (msg.room.status === "waiting") {
+        $("#lobby-code").textContent = o.code;
+        say("Waiting for a friend to join.");
+      } else if (msg.over) {
+        say("Game over.");
+        showOnlineResult();
+      } else {
+        result.hidden = true;
+        say(`${turnOf(state.turn)} Drag back from a coin and let go.`);
+      }
+      dirty = true;
+      break;
+    }
+    case "players":
+      o.players = msg.players;
+      updateBars();
+      break;
+    case "start":
+      o.status = "playing";
+      o.over = null;
+      o.rematch = [false, false];
+      o.players = msg.players;
+      game.load(msg.state);
+      shownPips[0] = shownPips[1] = 0;
+      for (const bar of bars) bar.querySelector(".pips")!.replaceChildren();
+      deadlineAt = Date.now() + msg.deadlineIn;
+      lobby.hidden = true;
+      result.hidden = true;
+      updateBars();
+      say(`${goesFirst(msg.state.turn)} Drag back from a coin and let go.`);
+      dirty = true;
+      break;
+    case "shot": {
+      deadlineAt = Date.now() + msg.deadlineIn;
+      if (game.serverShot(msg) === "snapped") {
+        resetPips(msg.state);
+        updateBars();
+        say(turnOf(msg.state.turn));
+      }
+      break;
+    }
+    case "turn":
+      game.load(msg.state);
+      resetPips(msg.state);
+      deadlineAt = Date.now() + msg.deadlineIn;
+      updateBars();
+      say(`${name(msg.who)} ran out of time. ${turnOf(msg.state.turn)}`);
+      dirty = true;
+      break;
+    case "over":
+      o.status = "over";
+      o.over = msg.over;
+      deadlineAt = null;
+      updateBars();
+      if (!game.animating) showOnlineResult(); // otherwise the last shot's playback shows it when it ends
+      break;
+    case "rematch":
+      o.rematch = msg.votes;
+      renderRematch();
+      break;
+    case "error":
+      // A rejected move is followed by a fresh snapshot, which puts the board right.
+      break;
+  }
+}
+
+/** The countdown in the active player's bar. */
+function updateClock(): void {
+  const live = isOnline() && online?.status === "playing" && deadlineAt !== null;
+  const turn = game.state.turn;
+  bars.forEach((bar, i) => {
+    const el = bar.querySelector<HTMLElement>(".clock")!;
+    if (!live || i !== turn) {
+      if (el.textContent) el.textContent = "";
+      el.classList.remove("urgent");
+      return;
+    }
+    // The server's deadline includes the last shot's playback; the visible clock only starts once it ends.
+    const secs = Math.min(TURN_MS / 1000, Math.ceil(Math.max(0, deadlineAt! - Date.now()) / 1000));
+    const text = `0:${String(secs).padStart(2, "0")}`;
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle("urgent", secs <= 5);
+  });
+}
+
+const REASONS = {
+  resign: ["resigned.", "You resigned."],
+  forfeit: ["disconnected.", "You were disconnected for too long."],
+  timeout: ["ran out of time.", "You ran out of time."],
+} as const;
+
+function showOnlineResult(): void {
+  const o = online;
+  const over = o?.over;
+  if (!o || !over) return;
+
+  const youWon = over.winner === o.seat;
+  const opponent = name(other(o.seat));
+  $("#result-title").textContent = over.winner === "draw" ? "It's a draw" : youWon ? "You win!" : `${opponent} wins`;
+  $("#result-score").textContent = `You ${over.scores[o.seat]} – ${over.scores[other(o.seat)]} ${opponent}`;
+
+  resultReason = over.reason === "normal" ? "" : youWon ? `${opponent} ${REASONS[over.reason][0]}` : REASONS[over.reason][1];
+  const r = over.ratings;
+  const change = r ? r.after[o.seat] - r.before[o.seat] : 0;
+  $("#result-rating").textContent = r
+    ? `Rating ${r.before[o.seat]} → ${r.after[o.seat]} (${change >= 0 ? "+" : "−"}${Math.abs(change)})`
+    : "";
+
+  renderRematch();
+  if (result.hidden) {
+    result.hidden = false;
+    if (over.winner === "draw" || youWon) sound.win();
+    else sound.lose();
+  }
+  $<HTMLButtonElement>("#rematch").focus();
+}
+
+function renderRematch(): void {
+  const o = online;
+  if (!o) return;
+  const button = $<HTMLButtonElement>("#rematch");
+  const mine = o.rematch[o.seat];
+  const theirs = o.rematch[other(o.seat)];
+  const opponent = name(other(o.seat));
+  button.disabled = mine;
+  button.textContent = mine ? "Waiting…" : theirs ? "Accept rematch" : "Rematch";
+  const hint = mine ? `Waiting for ${opponent} to accept.` : theirs ? `${opponent} wants a rematch.` : "";
+  $("#result-note").textContent = [resultReason, hint].filter(Boolean).join("\n");
+}
 
 // --- Computer opponent ----------------------------------------------------
 
@@ -264,7 +580,7 @@ let aimingPointer: number | null = null;
 
 canvas.addEventListener("pointerdown", (e) => {
   sound.unlock();
-  if (aimingPointer !== null || isComputerTurn()) return;
+  if (aimingPointer !== null || isComputerTurn() || (isOnline() && !online?.client.open)) return;
   if (!game.startAim(view.toBoard(e.clientX, e.clientY))) return;
   aimingPointer = e.pointerId;
   try {
@@ -305,9 +621,14 @@ new ResizeObserver(() => {
 }).observe(wrap);
 
 let last = performance.now();
+let lastClock = 0;
 function frame(now: number): void {
   const moving = game.update((now - last) / 1000, now);
   last = now;
+  if (now - lastClock > 200) {
+    lastClock = now;
+    updateClock();
+  }
   if (running && (moving || dirty)) {
     renderer.draw(game, now);
     dirty = false;

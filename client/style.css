@@ -410,9 +410,25 @@ button.ghost:hover {
   color: var(--muted);
 }
 
-#result-note {
-  margin-bottom: 20px !important;
-  font-size: 0.85rem;
+#result-note,
+#result-rating {
+  margin: 0 0 6px !important;
+  font-size: 0.9rem;
+  white-space: pre-line;
+}
+
+#result-note:empty,
+#result-rating:empty {
+  display: none;
+}
+
+#result .row {
+  margin-top: 18px;
+}
+
+#result-rating {
+  color: var(--fg);
+  font-weight: 600;
 }
 
 /* How to play */
@@ -525,6 +541,58 @@ button.ghost:hover {
 
 .howto svg .tea {
   fill: #6f7a22;
+}
+
+/* Online play */
+
+.clock {
+  min-width: 2.6em;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.clock.urgent {
+  color: #e88a7a;
+  font-weight: 700;
+}
+
+.conn {
+  padding: 8px 12px;
+  border: 1px solid #8a4a3a;
+  border-radius: 10px;
+  background: rgba(138, 74, 58, 0.25);
+  color: #f0b5a8;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.room-code {
+  margin: 4px 0 16px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-indent: 0.18em;
+}
+
+#online-card .wide {
+  margin-bottom: 8px;
+}
+
+#online-card p.muted {
+  margin: 0 0 12px;
+}
+
+#online-join .field {
+  flex: 1;
+  text-transform: uppercase;
+}
+
+#online-join button {
+  flex: 0 0 auto;
 }
 
 /* Player card and account sheets */

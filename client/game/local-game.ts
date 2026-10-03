@@ -60,6 +60,16 @@ interface Anim {
   acc: number;
   /** Fall events not yet shown. */
   pendingFalls: { step: number; id: number; vx: number; vy: number }[];
+  /** The server's verdict on this shot, once known. Online play adopts it when playback ends. */
+  auth: Authoritative | null;
+  /** True for a shot this player just took: playback waits at the end until the server answers. */
+  mine: boolean;
+}
+
+/** What the server says happened. */
+export interface Authoritative {
+  state: GameState;
+  outcome: ShotOutcome;
 }
 
 /** Two players on one device. Owns the game state, aiming and shot playback. */
@@ -73,6 +83,15 @@ export class LocalGame {
   onFire: (shot: Shot) => void = () => {};
   /** Physics events, delivered as playback reaches them (for hit sounds). */
   onSimEvents: (events: SimEvent[]) => void = () => {};
+  /** The player took a shot on this device. Online play sends it to the server from here. */
+  onLocalShot: (shot: Shot, seq: number) => void = () => {};
+  /**
+   * Which seat this device plays. Null means every turn is played here (hot-seat or computer).
+   * Online, it's the player's own seat: they can only aim on their turn.
+   */
+  controlledSeat: Seat | null = null;
+  /** Online: hold a shot's playback at its end until the server confirms the result. */
+  awaitServer = false;
 
   private anim: Anim | null = null;
   private free = new Set<number>();
@@ -85,21 +104,36 @@ export class LocalGame {
   }
 
   reset(seed: number, difficulty: Difficulty, first?: Seat): void {
-    this.state = newGame(seed, difficulty, first);
+    this.load(newGame(seed, difficulty, first));
+  }
+
+  /** Adopt a position wholesale: a new game, or the server's word after a reconnect. */
+  load(state: GameState): void {
+    this.state = state;
     this.aim = null;
     this.anim = null;
     this.ghosts = [];
     this.hidden.clear();
-    this.free = freeCoinIds(this.state.coins);
-    const rng = mulberry32(seed ^ 0x9e3779b9);
-    for (const c of this.state.coins) {
-      this.rotation.set(c.id, rng() * Math.PI * 2);
-      this.metal.set(c.id, Math.floor(rng() * METAL_COUNT));
+    this.free = freeCoinIds(state.coins);
+    // Looks come from the game's seed, so both players see the same coins.
+    const rng = mulberry32(state.seed ^ 0x9e3779b9);
+    const count = Math.max(0, ...state.coins.map((c) => c.id + 1));
+    this.rotation.clear();
+    this.metal.clear();
+    for (let id = 0; id < count; id++) {
+      this.rotation.set(id, rng() * Math.PI * 2);
+      this.metal.set(id, Math.floor(rng() * METAL_COUNT));
     }
   }
 
+  /** True while a shot is playing (or waiting at its end for the server). */
+  get animating(): boolean {
+    return this.anim !== null;
+  }
+
   get canAim(): boolean {
-    return this.state.status === "playing" && this.anim === null;
+    if (this.state.status !== "playing" || this.anim !== null) return false;
+    return this.controlledSeat === null || this.state.turn === this.controlledSeat;
   }
 
   /** Nearest free coin under the pointer, if any. */
@@ -176,10 +210,37 @@ export class LocalGame {
   fire(shot: Shot): void {
     this.aim = null;
     if (!legalShot(this.state, this.state.turn, shot)) return;
+    const seq = this.state.shots;
+    this.play(shot, null, true);
+    this.onLocalShot(shot, seq);
+  }
+
+  /** Start playing a shot. Online, `auth` is the server's result when it's already known. */
+  private play(shot: Shot, auth: Authoritative | null, mine: boolean): void {
     const result = simulateShot(this.state, shot, this.physics, true);
     const pendingFalls = result.events.flatMap((e) => (e.type === "fall" ? [e] : []));
-    this.anim = { shot, result, frame: 0, acc: 0, pendingFalls };
+    this.anim = { shot, result, frame: 0, acc: 0, pendingFalls, auth, mine };
     this.onFire(shot);
+  }
+
+  /**
+   * The server announced a shot. If it's ours coming back, attach the verdict to the animation
+   * already playing. If it's the opponent's, animate it now. If we're out of step, just adopt
+   * the server's position.
+   */
+  serverShot(msg: { seq: number; shot: Shot; state: GameState; outcome: ShotOutcome }): "played" | "snapped" {
+    const auth = { state: msg.state, outcome: msg.outcome };
+    const a = this.anim;
+    if (a?.mine && this.state.shots === msg.seq && a.shot.coinId === msg.shot.coinId) {
+      a.auth = auth;
+      return "played";
+    }
+    if (!a && this.state.shots === msg.seq) {
+      this.play(msg.shot, auth, false);
+      return "played";
+    }
+    this.load(msg.state);
+    return "snapped";
   }
 
   /** Advance playback. Returns true while anything is still moving. */
@@ -201,7 +262,7 @@ export class LocalGame {
       const due = anim.result.events.filter((e) => e.step >= before && e.step < anim.frame);
       if (due.length > 0) this.onSimEvents(due);
     }
-    if (anim.frame >= frames.length) this.finish(anim);
+    if (anim.frame >= frames.length && !(anim.mine && this.awaitServer && !anim.auth)) this.finish(anim);
     return true;
   }
 
@@ -236,11 +297,12 @@ export class LocalGame {
 
   private finish(anim: Anim): void {
     const shooter = this.state.turn;
-    const { state, outcome } = resolveShot(this.state, anim.shot, anim.result);
+    const { state, outcome } = anim.auth ?? resolveShot(this.state, anim.shot, anim.result);
     let kept: Resolved["kept"] = null;
     if (outcome.captured !== null) {
-      const t = anim.result.coins.find((c) => c.id === outcome.captured)!;
-      kept = { x: t.x, y: t.y, metal: this.metal.get(t.id)! };
+      // Where the kept coin ended up on this device; fall back to where it started if we disagree.
+      const t = anim.result.coins.find((c) => c.id === outcome.captured) ?? this.state.coins.find((c) => c.id === outcome.captured);
+      if (t) kept = { x: t.x, y: t.y, metal: this.metal.get(t.id)! };
     }
     this.state = state;
     this.anim = null;

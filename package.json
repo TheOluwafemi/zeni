@@ -12,7 +12,9 @@
     "cf-typegen": "wrangler types",
     "simulate": "tsx tools/simulate.ts",
     "ai-match": "tsx tools/ai-match.ts",
-    "icons": "tsx tools/make-icons.ts"
+    "icons": "tsx tools/make-icons.ts",
+    "play-online": "tsx tools/play-online.ts",
+    "bot-room": "tsx tools/bot-room.ts"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",

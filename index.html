@@ -60,6 +60,17 @@
           </div>
         </div>
 
+        <div class="card" id="online-card">
+          <h2>Play online</h2>
+          <button type="button" class="primary wide" id="online-create">Create a room</button>
+          <p class="muted small">Uses the table chosen above. You'll get a link to send a friend.</p>
+          <form id="online-join" class="row" novalidate>
+            <input id="online-code" class="field code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Room code" aria-label="Room code" />
+            <button type="submit">Join</button>
+          </form>
+          <p id="online-status" class="status" aria-live="polite"></p>
+        </div>
+
         <div class="row">
           <button type="button" id="open-howto">How to play</button>
           <button type="button" id="toggle-sound" aria-pressed="true">Sound on</button>
@@ -79,11 +90,13 @@
         <button type="button" id="leave" class="ghost">‹ Menu</button>
         <span id="game-label"></span>
       </nav>
+      <div id="conn" class="conn" role="status" hidden>Connection lost. Reconnecting…</div>
 
       <section class="player" data-seat="1">
         <span class="turn-dot" aria-hidden="true"></span>
         <span class="name"></span>
         <span class="pips" aria-hidden="true"></span>
+        <span class="clock" aria-hidden="true"></span>
         <span class="score" aria-label="Coins kept">0</span>
       </section>
 
@@ -95,6 +108,7 @@
         <span class="turn-dot" aria-hidden="true"></span>
         <span class="name"></span>
         <span class="pips" aria-hidden="true"></span>
+        <span class="clock" aria-hidden="true"></span>
         <span class="score" aria-label="Coins kept">0</span>
       </section>
 
@@ -107,6 +121,7 @@
         <h2 id="result-title"></h2>
         <p id="result-score"></p>
         <p id="result-note"></p>
+        <p id="result-rating"></p>
         <div class="row">
           <button type="button" id="result-home">Home</button>
           <button type="button" class="primary" id="rematch">Rematch</button>
@@ -228,6 +243,29 @@
         </div>
 
         <button type="button" class="primary wide" id="settings-close">Done</button>
+      </div>
+    </div>
+
+    <!-- Waiting for a friend to join the room -->
+    <div id="sheet-lobby" class="overlay" hidden>
+      <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="lobby-title">
+        <h3 id="lobby-title" class="title">Waiting for a friend</h3>
+        <p class="muted">Send them this code or the link. The game starts as soon as they join.</p>
+        <p id="lobby-code" class="room-code" aria-label="Room code"></p>
+        <div class="row">
+          <button type="button" id="lobby-copy">Copy link</button>
+          <button type="button" class="primary" id="lobby-share">Share</button>
+        </div>
+        <button type="button" class="link" id="lobby-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Something went wrong with the room -->
+    <div id="notice" class="overlay" hidden>
+      <div class="card dialog" role="alertdialog" aria-modal="true" aria-labelledby="notice-title" aria-describedby="notice-text">
+        <h3 id="notice-title" class="title"></h3>
+        <p id="notice-text" class="muted"></p>
+        <button type="button" class="primary wide" id="notice-home">Back to menu</button>
       </div>
     </div>
 

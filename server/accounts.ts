@@ -8,8 +8,10 @@ import { formatCode, hashCode, newCode, normalizeCode, validateNickname } from "
 /** The slice of D1 this file uses. Declared here so tests can supply a SQLite stand-in. */
 export interface Db {
   prepare(sql: string): Stmt;
+  /** Run statements together: all take effect or none do. */
+  batch(statements: Stmt[]): Promise<unknown[]>;
 }
-interface Stmt {
+export interface Stmt {
   bind(...values: unknown[]): Stmt;
   first<T = Record<string, unknown>>(): Promise<T | null>;
   run(): Promise<unknown>;
@@ -65,14 +67,19 @@ async function prune(db: Db, now = Date.now()): Promise<void> {
 
 // --- Auth -------------------------------------------------------------------
 
-/** The player whose code is in the Authorization header, or null. */
-export async function authenticate(db: Db, header: string | null): Promise<Player | null> {
-  const code = normalizeCode(header?.match(/^Bearer\s+(.+)$/i)?.[1] ?? "");
+/** The player who owns this player code (any pasted form), or null. */
+export async function playerForCode(db: Db, raw: string): Promise<Player | null> {
+  const code = normalizeCode(raw);
   if (!code) return null;
   return db
     .prepare(`SELECT ${PLAYER_COLUMNS} FROM players WHERE code_hash = ?1`)
     .bind(await hashCode(code))
     .first<Player>();
+}
+
+/** The player whose code is in the Authorization header, or null. */
+export function authenticate(db: Db, header: string | null): Promise<Player | null> {
+  return playerForCode(db, header?.match(/^Bearer\s+(.+)$/i)?.[1] ?? "");
 }
 
 const isUniqueViolation = (e: unknown) => String((e as Error)?.message ?? e).includes("UNIQUE constraint failed");
