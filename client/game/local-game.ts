@@ -154,7 +154,22 @@ export class LocalGame {
     this.aim = null;
   }
 
+  /** Show someone else's shot being lined up: `t` runs 0→1 as the pull draws back. */
+  previewAim(shot: Shot, t: number): void {
+    const c = this.state.coins.find((k) => k.id === shot.coinId);
+    if (!c) return;
+    const power = shot.power * t;
+    const pull = COIN_RADIUS + power * MAX_DRAG;
+    this.aim = {
+      coinId: shot.coinId,
+      pointer: { x: c.x - Math.cos(shot.angle) * pull, y: c.y - Math.sin(shot.angle) * pull },
+      angle: shot.angle,
+      power,
+    };
+  }
+
   fire(shot: Shot): void {
+    this.aim = null;
     if (!legalShot(this.state, this.state.turn, shot)) return;
     const result = simulateShot(this.state, shot, this.physics, true);
     const pendingFalls = result.events.flatMap((e) => (e.type === "fall" ? [e] : []));

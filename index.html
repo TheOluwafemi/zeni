@@ -29,6 +29,15 @@
 
       <footer>
         <p id="message" aria-live="polite"></p>
+        <label class="opponent">
+          Play against
+          <select id="opponent">
+            <option value="friend">A friend on this device</option>
+            <option value="beginner">Computer · Beginner</option>
+            <option value="skilled">Computer · Skilled</option>
+            <option value="master">Computer · Master</option>
+          </select>
+        </label>
         <div class="new-game" role="group" aria-label="New game">
           <button type="button" data-difficulty="easy">Easy · 2 cups</button>
           <button type="button" data-difficulty="hard">Hard · 4 cups</button>

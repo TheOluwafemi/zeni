@@ -1,19 +1,25 @@
+import { AI_LEVELS, type AiLevel } from "../shared/ai";
 import type { Difficulty } from "../shared/constants";
 import { randomSeed } from "../shared/rng";
 import { other } from "../shared/rules";
 import type { Seat } from "../shared/types";
+import { ComputerPlayer } from "./game/computer";
 import { LocalGame, type Resolved } from "./game/local-game";
 import { Renderer } from "./game/render";
 import { BoardView } from "./game/view";
 import { mountTuning } from "./tune";
 
-const NAMES = ["Player 1", "Player 2"] as const;
+/** Who sits in seat 1: a friend on the same device, or the computer at some level. */
+type Opponent = "friend" | AiLevel;
+const COMPUTER_SEAT: Seat = 1;
+const AIM_PREVIEW_MS = 650;
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const canvas = $<HTMLCanvasElement>("#board");
 const wrap = $("#board-wrap");
 const message = $("#message");
 const result = $("#result");
+const opponentSelect = $<HTMLSelectElement>("#opponent");
 const bars = [0, 1].map((seat) => $(`.player[data-seat="${seat}"]`));
 
 // ?seed=123 replays the same layout every game, handy while tuning.
@@ -22,23 +28,46 @@ const fixedSeed = params.has("seed") ? Number(params.get("seed")) >>> 0 : null;
 const nextSeed = () => fixedSeed ?? randomSeed();
 
 let difficulty: Difficulty = params.get("difficulty") === "hard" ? "hard" : "easy";
+let opponent: Opponent = AI_LEVELS.includes(params.get("opponent") as AiLevel)
+  ? (params.get("opponent") as AiLevel)
+  : "friend";
 
 const view = new BoardView(canvas, wrap);
 const renderer = new Renderer(view);
 const game = new LocalGame(nextSeed(), difficulty);
+let computer: ComputerPlayer | null = null;
 let dirty = true;
+/** Bumped on every new game so a computer turn from an old game is ignored. */
+let gameToken = 0;
 
 if (params.has("tune")) mountTuning($("#tune"), game.physics);
 
+// --- Names and wording ---------------------------------------------------
+
+const vsComputer = () => opponent !== "friend";
+const isYou = (seat: Seat) => vsComputer() && seat !== COMPUTER_SEAT;
+const isComputerTurn = () => vsComputer() && game.state.turn === COMPUTER_SEAT;
+
+function name(seat: Seat): string {
+  if (!vsComputer()) return seat === 0 ? "Player 1" : "Player 2";
+  return seat === COMPUTER_SEAT ? "Computer" : "You";
+}
+const keeps = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "keep" : "keeps"}`;
+const gets = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "get" : "gets"}`;
+const turnOf = (seat: Seat) => (isYou(seat) ? "Your turn." : `${name(seat)}'s turn.`);
+const goesFirst = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "go" : "goes"} first.`;
+
 // --- UI -------------------------------------------------------------------
 
-function updateBars(): void {
+function updateBars(thinking = false): void {
   const { scores, turn, status } = game.state;
-  bars.forEach((bar, seat) => {
+  bars.forEach((bar, i) => {
+    const seat = i as Seat;
     bar.classList.toggle("active", status === "playing" && turn === seat);
+    const label = name(seat) + (thinking && seat === COMPUTER_SEAT ? " · thinking…" : "");
+    bar.querySelector(".name")!.textContent = label;
     bar.querySelector(".score")!.textContent = String(scores[seat]);
-    const pips = bar.querySelector(".pips")!;
-    pips.replaceChildren(
+    bar.querySelector(".pips")!.replaceChildren(
       ...Array.from({ length: scores[seat] }, () => {
         const p = document.createElement("span");
         p.className = "pip";
@@ -53,19 +82,24 @@ function say(text: string): void {
 }
 
 function startGame(): void {
+  gameToken++;
   game.reset(nextSeed(), difficulty);
   result.hidden = true;
   for (const b of difficultyButtons) b.classList.toggle("current", b.dataset.difficulty === difficulty);
+  opponentSelect.value = opponent;
   updateBars();
   say(
-    `${NAMES[game.state.turn]} goes first. Drag back from a coin and let go. Hit exactly one coin to keep it, but anything that falls off goes to your opponent.`,
+    `${goesFirst(game.state.turn)} Drag back from a coin and let go. Hit exactly one coin to keep it, but anything that falls off goes to the other player.`,
   );
   dirty = true;
+  void playComputerTurn();
 }
 
 function showResult(): void {
   const { winner, scores } = game.state;
-  $("#result-title").textContent = winner === "draw" ? "It's a draw" : `${NAMES[winner as Seat]} wins`;
+  const title =
+    winner === "draw" ? "It's a draw" : isYou(winner as Seat) ? "You win!" : `${name(winner as Seat)} wins`;
+  $("#result-title").textContent = title;
   $("#result-score").textContent = `${scores[0]} – ${scores[1]}`;
   result.hidden = false;
   $<HTMLButtonElement>("#play-again").focus();
@@ -79,26 +113,28 @@ game.onResolved = ({ shooter, outcome }: Resolved) => {
     setTimeout(showResult, 600);
     return;
   }
-  const me = NAMES[shooter];
-  const them = NAMES[other(shooter)];
+  const them = other(shooter);
   const fell = outcome.fallen.length;
   const fellText = fell === 1 ? "A coin fell off the table" : `${fell} coins fell off the table`;
-  const gives = `${them} gets ${fell === 1 ? "it" : "them"}`;
+  const handedOver = `${gets(them)} ${fell === 1 ? "it" : "them"}.`;
 
-  if (outcome.captured !== null) navigator.vibrate?.(12);
+  if (outcome.captured !== null && isYou(shooter)) navigator.vibrate?.(12);
   if (outcome.again) {
-    say(`${me} keeps a coin! Shoot again with the same coin.`);
+    say(isYou(shooter) || !vsComputer()
+      ? `${keeps(shooter)} a coin! Shoot again with the same coin.`
+      : `${keeps(shooter)} a coin and goes again with the same coin.`);
   } else if (outcome.blocked) {
-    say(`${me} keeps a coin, but their coin stopped touching another, so it can't go again. ${them}'s turn.`);
+    say(`${keeps(shooter)} a coin, but that coin stopped touching another, so it can't go again. ${turnOf(them)}`);
   } else if (outcome.captured !== null) {
-    say(`${me} keeps a coin, but ${fellText.toLowerCase()}. ${gives}, and it's ${them}'s turn.`);
+    say(`${keeps(shooter)} a coin, but ${fellText.toLowerCase()}. ${handedOver} ${turnOf(them)}`);
   } else if (fell > 0) {
-    say(`${fellText}. ${gives}, and it's ${them}'s turn.`);
+    say(`${fellText}. ${handedOver} ${turnOf(them)}`);
   } else if (outcome.touched === 0) {
-    say(`No touch. ${them}'s turn.`);
+    say(`No touch. ${turnOf(them)}`);
   } else {
-    say(`Touched ${outcome.touched} coins, so none kept. ${them}'s turn.`);
+    say(`Touched ${outcome.touched} coins, so none kept. ${turnOf(them)}`);
   }
+  void playComputerTurn();
 };
 
 const difficultyButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-difficulty]")];
@@ -108,14 +144,47 @@ for (const b of difficultyButtons) {
     startGame();
   });
 }
+opponentSelect.addEventListener("change", () => {
+  opponent = opponentSelect.value as Opponent;
+  startGame();
+});
 $("#play-again").addEventListener("click", startGame);
+
+// --- Computer opponent ----------------------------------------------------
+
+async function playComputerTurn(): Promise<void> {
+  if (!isComputerTurn() || game.state.status !== "playing" || !game.canAim) return;
+  const token = gameToken;
+  computer ??= new ComputerPlayer();
+  updateBars(true);
+
+  const shot = await computer.think(game.state, opponent as AiLevel, game.physics);
+  if (token !== gameToken) return;
+  updateBars();
+
+  // Draw the shot back like a player would, then let go.
+  const start = performance.now();
+  await new Promise<void>((done) => {
+    const pull = (now: number) => {
+      if (token !== gameToken) return done();
+      const t = Math.min(1, (now - start) / AIM_PREVIEW_MS);
+      game.previewAim(shot, 1 - (1 - t) ** 3);
+      dirty = true;
+      if (t < 1) requestAnimationFrame(pull);
+      else done();
+    };
+    requestAnimationFrame(pull);
+  });
+  if (token !== gameToken) return;
+  game.fire(shot);
+}
 
 // --- Input ----------------------------------------------------------------
 
 let aimingPointer: number | null = null;
 
 canvas.addEventListener("pointerdown", (e) => {
-  if (aimingPointer !== null) return;
+  if (aimingPointer !== null || isComputerTurn()) return;
   if (!game.startAim(view.toBoard(e.clientX, e.clientY))) return;
   aimingPointer = e.pointerId;
   canvas.setPointerCapture(e.pointerId);
@@ -129,7 +198,7 @@ canvas.addEventListener("pointermove", (e) => {
     game.moveAim(p);
     dirty = true;
   } else if (e.pointerType === "mouse" && aimingPointer === null) {
-    canvas.style.cursor = game.coinAt(p) ? "grab" : "default";
+    canvas.style.cursor = !isComputerTurn() && game.coinAt(p) ? "grab" : "default";
   }
 });
 

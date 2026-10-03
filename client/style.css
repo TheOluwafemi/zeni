@@ -129,6 +129,31 @@ footer {
   line-height: 1.35;
 }
 
+.opponent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.opponent select {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.opponent select:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
 .new-game {
   display: flex;
   gap: 8px;

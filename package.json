@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.server.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
     "cf-typegen": "wrangler types",
-    "simulate": "tsx tools/simulate.ts"
+    "simulate": "tsx tools/simulate.ts",
+    "ai-match": "tsx tools/ai-match.ts"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",
