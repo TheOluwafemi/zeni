@@ -3,14 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#2a1d14" />
+    <meta name="theme-color" content="#1c120b" />
     <title>Zeni</title>
     <link rel="stylesheet" href="/client/style.css" />
   </head>
   <body>
     <main id="app">
-      <h1>Zeni</h1>
-      <p id="status">Connecting…</p>
+      <section class="player" data-seat="1">
+        <span class="turn-dot" aria-hidden="true"></span>
+        <span class="name">Player 2</span>
+        <span class="pips" aria-hidden="true"></span>
+        <span class="score" aria-label="Coins kept">0</span>
+      </section>
+
+      <div id="board-wrap">
+        <canvas id="board" aria-label="Game board"></canvas>
+      </div>
+
+      <section class="player" data-seat="0">
+        <span class="turn-dot" aria-hidden="true"></span>
+        <span class="name">Player 1</span>
+        <span class="pips" aria-hidden="true"></span>
+        <span class="score" aria-label="Coins kept">0</span>
+      </section>
+
+      <footer>
+        <p id="message" aria-live="polite"></p>
+        <button id="new-game" type="button">New game</button>
+      </footer>
+
+      <div id="result" hidden>
+        <div class="card">
+          <h2 id="result-title"></h2>
+          <p id="result-score"></p>
+          <button id="play-again" type="button">Play again</button>
+        </div>
+      </div>
+
+      <aside id="tune" hidden></aside>
     </main>
     <script type="module" src="/client/main.ts"></script>
   </body>

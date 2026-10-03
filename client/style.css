@@ -1,7 +1,10 @@
 :root {
-  --bg: #2a1d14;
+  --bg: #1c120b;
+  --panel: #2a1b11;
   --fg: #f3e6d3;
-  --muted: #b89f82;
+  --muted: #b39a7e;
+  --gold: #e8b85a;
+  --line: rgba(243, 230, 211, 0.12);
   color-scheme: dark;
 }
 
@@ -15,22 +18,219 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--fg);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  height: 100dvh;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+/* Player bars */
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.player.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 18px rgba(232, 184, 90, 0.18);
+}
+
+.turn-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.player.active .turn-dot {
+  background: var(--gold);
+}
+
+.name {
+  font-weight: 600;
+}
+
+.pips {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f6d08e, #b8733a 60%, #5e3215);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.score {
+  min-width: 1.5ch;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Board */
+
+/* Square when there's room; shrinks to fit short screens. The canvas fills min(width, height). */
+#board-wrap {
   display: grid;
-  place-content: center;
-  height: 100%;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+#board {
+  display: block;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Footer */
+
+footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#message {
+  flex: 1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--muted);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Result */
+
+#result {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 6, 3, 0.65);
+  backdrop-filter: blur(3px);
+}
+
+#result[hidden] {
+  display: none;
+}
+
+#result .card {
+  width: min(340px, 100%);
+  padding: 28px 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
   text-align: center;
 }
 
-h1 {
-  margin: 0;
-  font-size: 3rem;
-  letter-spacing: 0.05em;
+#result h2 {
+  margin: 0 0 6px;
+  font-size: 1.6rem;
 }
 
-#status {
+#result p {
+  margin: 0 0 20px;
   color: var(--muted);
+}
+
+#play-again {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #24160c;
+}
+
+/* Tuning panel (?tune) */
+
+#tune {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  width: 260px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(28, 18, 11, 0.94);
+  font-size: 0.8rem;
+}
+
+#tune[hidden] {
+  display: none;
+}
+
+#tune label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  margin-bottom: 8px;
+}
+
+#tune input {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+#tune .row {
+  display: flex;
+  gap: 8px;
+}
+
+#tune button {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 0.8rem;
 }
