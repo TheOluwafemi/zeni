@@ -107,8 +107,6 @@ body {
 
 #board {
   display: block;
-  border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -119,16 +117,29 @@ body {
 
 footer {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
 }
 
 #message {
-  flex: 1;
+  min-height: 2.7em;
   margin: 0;
   color: var(--muted);
   font-size: 0.95rem;
   line-height: 1.35;
+}
+
+.new-game {
+  display: flex;
+  gap: 8px;
+}
+
+.new-game button {
+  flex: 1;
+}
+
+.new-game button.current {
+  border-color: var(--gold);
 }
 
 button {

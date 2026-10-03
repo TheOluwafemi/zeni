@@ -1,37 +1,65 @@
 import {
-  BOARD_SIZE,
   COIN_COUNT,
   COIN_RADIUS,
+  CUP_RADIUS,
+  CUPS,
   FREE_GAP,
   MAX_SHOTS,
   MIN_POWER,
+  TABLE_CENTER,
+  TABLE_RADIUS,
+  type Difficulty,
 } from "./constants";
 import { mulberry32 } from "./rng";
-import type { Coin, GameState, Seat, Shot, ShotOutcome, ShotResult, SimEvent } from "./types";
+import type { Coin, Cup, GameState, Seat, Shot, ShotOutcome, ShotResult, SimEvent } from "./types";
 
-const SCATTER_MARGIN = 150;
-const SCATTER_MIN_DIST = COIN_RADIUS * 2 + 40;
+const COIN_MARGIN = 140; // keep the starting coins away from the edge
+const CUP_MARGIN = 200;
+const COIN_SPACING = COIN_RADIUS * 2 + 40;
+const CUP_SPACING = CUP_RADIUS * 2 + COIN_RADIUS * 2; // a coin can always pass between two cups
+const CUP_CLEARANCE = CUP_RADIUS + COIN_RADIUS + 30;
 const FREE_DIST = COIN_RADIUS * 2 + FREE_GAP;
 
-export function newGame(seed: number): GameState {
+export function newGame(seed: number, difficulty: Difficulty = "easy"): GameState {
   const rng = mulberry32(seed);
-  const span = BOARD_SIZE - SCATTER_MARGIN * 2;
-  const coins: Coin[] = [];
+  // Uniform over a disc, `margin` in from the table edge.
+  const place = (margin: number) => {
+    const a = rng() * Math.PI * 2;
+    const r = Math.sqrt(rng()) * (TABLE_RADIUS - margin);
+    return { x: TABLE_CENTER + Math.cos(a) * r, y: TABLE_CENTER + Math.sin(a) * r };
+  };
+  const far = (a: { x: number; y: number }, b: { x: number; y: number }, d: number) =>
+    (a.x - b.x) ** 2 + (a.y - b.y) ** 2 >= d * d;
 
   let attempts = 0;
+  const guard = () => {
+    if (++attempts > 20_000) throw new Error("Could not lay out the table");
+  };
+
+  const cups: Cup[] = [];
+  while (cups.length < CUPS[difficulty]) {
+    guard();
+    const p = place(CUP_MARGIN);
+    if (cups.every((c) => far(c, p, CUP_SPACING))) cups.push(p);
+  }
+
+  const coins: Coin[] = [];
   while (coins.length < COIN_COUNT) {
-    if (++attempts > 10_000) throw new Error("Could not place coins");
-    const x = SCATTER_MARGIN + rng() * span;
-    const y = SCATTER_MARGIN + rng() * span;
-    const clear = coins.every((c) => (c.x - x) ** 2 + (c.y - y) ** 2 >= SCATTER_MIN_DIST ** 2);
-    if (clear) coins.push({ id: coins.length, x, y, vx: 0, vy: 0 });
+    guard();
+    const p = place(COIN_MARGIN);
+    if (coins.every((c) => far(c, p, COIN_SPACING)) && cups.every((c) => far(c, p, CUP_CLEARANCE))) {
+      coins.push({ id: coins.length, ...p, vx: 0, vy: 0 });
+    }
   }
 
   return {
     seed,
+    difficulty,
     coins,
+    cups,
     scores: [0, 0],
     turn: rng() < 0.5 ? 0 : 1,
+    shooter: null,
     shots: 0,
     status: "playing",
     winner: null,
@@ -57,11 +85,12 @@ export function legalShot(state: GameState, seat: Seat, shot: Shot): boolean {
   if (state.status !== "playing" || state.turn !== seat) return false;
   if (!Number.isFinite(shot.angle) || !Number.isFinite(shot.power)) return false;
   if (shot.power < MIN_POWER || shot.power > 1) return false;
+  if (state.shooter !== null && shot.coinId !== state.shooter) return false;
   const coin = state.coins.find((c) => c.id === shot.coinId);
   return coin !== undefined && isFree(state.coins, coin);
 }
 
-/** Every coin the shooter touched during the shot. */
+/** Every coin the shooter touched during the shot. Cups don't count. */
 export function touchedBy(events: readonly SimEvent[], shooterId: number): Set<number> {
   const touched = new Set<number>();
   for (const e of events) {
@@ -72,29 +101,48 @@ export function touchedBy(events: readonly SimEvent[], shooterId: number): Set<n
   return touched;
 }
 
-/** Apply a finished shot: capture if the shooter touched exactly one coin, otherwise pass the turn. */
+/**
+ * Apply a finished shot.
+ * - Touch exactly one coin and it stays on the table: you keep it.
+ * - Any coin that falls off (including your shooter) goes to your opponent.
+ * - You shoot again only if you kept a coin and nothing fell off, and you must shoot
+ *   the same coin from where it stopped. If it stopped touching another coin, the turn passes.
+ * - Only a new turn lets a player pick any coin.
+ */
 export function resolveShot(
   state: GameState,
   shot: Shot,
   result: ShotResult,
 ): { state: GameState; outcome: ShotOutcome } {
+  const shooter = state.turn;
   const touched = touchedBy(result.events, shot.coinId);
   const scores: [number, number] = [state.scores[0], state.scores[1]];
   let coins = result.coins.map((c) => ({ ...c }));
-  let turn = state.turn;
-  let outcome: ShotOutcome;
 
+  let captured: number | null = null;
   if (touched.size === 1) {
     const [target] = touched;
-    coins = coins.filter((c) => c.id !== target);
-    scores[turn]++;
-    outcome = { kind: "capture", target };
-  } else {
-    turn = other(turn);
-    outcome = { kind: "miss", touched: touched.size };
+    if (!result.fallen.includes(target)) {
+      captured = target;
+      coins = coins.filter((c) => c.id !== target);
+      scores[shooter]++;
+    }
   }
+  scores[other(shooter)] += result.fallen.length;
 
-  const next: GameState = { ...state, coins, scores, turn, shots: state.shots + 1 };
+  const earned = captured !== null && result.fallen.length === 0;
+  const own = coins.find((c) => c.id === shot.coinId);
+  const blocked = earned && (own === undefined || !isFree(coins, own));
+  const again = earned && !blocked;
+  const outcome: ShotOutcome = { captured, touched: touched.size, fallen: result.fallen, again, blocked };
+  const next: GameState = {
+    ...state,
+    coins,
+    scores,
+    turn: again ? shooter : other(shooter),
+    shooter: again ? shot.coinId : null,
+    shots: state.shots + 1,
+  };
   return { state: finishIfOver(next), outcome };
 }
 

@@ -1,4 +1,11 @@
-import { COIN_RADIUS, DEFAULT_PHYSICS, DT, MIN_POWER, type PhysicsConfig } from "../../shared/constants";
+import {
+  COIN_RADIUS,
+  DEFAULT_PHYSICS,
+  DT,
+  MIN_POWER,
+  type Difficulty,
+  type PhysicsConfig,
+} from "../../shared/constants";
 import { simulateShot } from "../../shared/physics";
 import { mulberry32 } from "../../shared/rng";
 import { freeCoinIds, legalShot, newGame, resolveShot } from "../../shared/rules";
@@ -10,7 +17,7 @@ import type { Point } from "./view";
 const MAX_DRAG = 320;
 /** Touch target is bigger than the coin so it's easy to grab with a finger. */
 const PICK_RADIUS = COIN_RADIUS * 1.6;
-export const GHOST_MS = 450;
+export const GHOST_MS = { capture: 450, fall: 500 } as const;
 
 export interface Aim {
   coinId: number;
@@ -28,9 +35,13 @@ export interface DrawCoin {
   dimmed: boolean;
 }
 
+/** A coin leaving the table: floating up when kept, dropping when it falls off. */
 export interface Ghost {
+  kind: "capture" | "fall";
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   rotation: number;
   metal: number;
   start: number;
@@ -46,6 +57,8 @@ interface Anim {
   result: ShotResult;
   frame: number;
   acc: number;
+  /** Fall events not yet shown. */
+  pendingFalls: { step: number; id: number; vx: number; vy: number }[];
 }
 
 /** Two players on one device. Owns the game state, aiming and shot playback. */
@@ -58,18 +71,20 @@ export class LocalGame {
 
   private anim: Anim | null = null;
   private free = new Set<number>();
+  private hidden = new Set<number>();
   private rotation = new Map<number, number>();
   private metal = new Map<number, number>();
 
-  constructor(seed: number) {
-    this.reset(seed);
+  constructor(seed: number, difficulty: Difficulty) {
+    this.reset(seed, difficulty);
   }
 
-  reset(seed: number): void {
-    this.state = newGame(seed);
+  reset(seed: number, difficulty: Difficulty): void {
+    this.state = newGame(seed, difficulty);
     this.aim = null;
     this.anim = null;
     this.ghosts = [];
+    this.hidden.clear();
     this.free = freeCoinIds(this.state.coins);
     const rng = mulberry32(seed ^ 0x9e3779b9);
     for (const c of this.state.coins) {
@@ -88,7 +103,7 @@ export class LocalGame {
     let best: Coin | null = null;
     let bestD = PICK_RADIUS;
     for (const c of this.state.coins) {
-      if (!this.free.has(c.id)) continue;
+      if (!this.playable(c.id)) continue;
       const d = Math.hypot(c.x - p.x, c.y - p.y);
       if (d <= bestD) {
         best = c;
@@ -96,6 +111,17 @@ export class LocalGame {
       }
     }
     return best;
+  }
+
+  /** During a run of captures only the same coin may be shot; otherwise any free coin. */
+  private playable(id: number): boolean {
+    const forced = this.state.shooter;
+    return forced === null ? this.free.has(id) : id === forced;
+  }
+
+  /** The coin the current player must shoot, if their choice is restricted. */
+  get forcedCoin(): number | null {
+    return this.canAim ? this.state.shooter : null;
   }
 
   startAim(p: Point): boolean {
@@ -130,13 +156,14 @@ export class LocalGame {
 
   fire(shot: Shot): void {
     if (!legalShot(this.state, this.state.turn, shot)) return;
-    const result = simulateShot(this.state.coins, shot, this.physics, true);
-    this.anim = { shot, result, frame: 0, acc: 0 };
+    const result = simulateShot(this.state, shot, this.physics, true);
+    const pendingFalls = result.events.flatMap((e) => (e.type === "fall" ? [e] : []));
+    this.anim = { shot, result, frame: 0, acc: 0, pendingFalls };
   }
 
   /** Advance playback. Returns true while anything is still moving. */
   update(dtSeconds: number, now: number): boolean {
-    this.ghosts = this.ghosts.filter((g) => now - g.start < GHOST_MS);
+    this.ghosts = this.ghosts.filter((g) => now - g.start < GHOST_MS[g.kind]);
     const anim = this.anim;
     if (!anim) return this.ghosts.length > 0;
 
@@ -147,7 +174,10 @@ export class LocalGame {
       anim.frame++;
       anim.acc -= DT;
     }
-    if (anim.frame > before) this.spin(before, anim.frame);
+    if (anim.frame > before) {
+      this.spin(before, anim.frame);
+      this.showFalls(anim, now);
+    }
     if (anim.frame >= frames.length) this.finish(anim, now);
     return true;
   }
@@ -165,36 +195,52 @@ export class LocalGame {
     });
   }
 
+  /** Once playback reaches a fall, swap the frozen coin for a dropping ghost. */
+  private showFalls(anim: Anim, now: number): void {
+    const frame = anim.result.frames![anim.frame - 1];
+    anim.pendingFalls = anim.pendingFalls.filter((f) => {
+      if (f.step >= anim.frame) return true;
+      const i = this.state.coins.findIndex((c) => c.id === f.id);
+      this.hidden.add(f.id);
+      this.ghosts.push({ kind: "fall", x: frame[i * 2], y: frame[i * 2 + 1], vx: f.vx, vy: f.vy, ...this.look(f.id), start: now });
+      return false;
+    });
+  }
+
+  private look(id: number): { rotation: number; metal: number } {
+    return { rotation: this.rotation.get(id)!, metal: this.metal.get(id)! };
+  }
+
   private finish(anim: Anim, now: number): void {
     const shooter = this.state.turn;
     const { state, outcome } = resolveShot(this.state, anim.shot, anim.result);
-    if (outcome.kind === "capture") {
-      const t = anim.result.coins.find((c) => c.id === outcome.target)!;
-      this.ghosts.push({
-        x: t.x,
-        y: t.y,
-        rotation: this.rotation.get(t.id)!,
-        metal: this.metal.get(t.id)!,
-        start: now,
-      });
+    if (outcome.captured !== null) {
+      const t = anim.result.coins.find((c) => c.id === outcome.captured)!;
+      this.ghosts.push({ kind: "capture", x: t.x, y: t.y, vx: 0, vy: 0, ...this.look(t.id), start: now });
     }
     this.state = state;
     this.anim = null;
+    this.hidden.clear();
     this.free = freeCoinIds(state.coins);
     this.onResolved({ shooter, outcome });
   }
 
   coins(): DrawCoin[] {
-    const frame = this.anim ? this.anim.result.frames![Math.max(0, this.anim.frame - 1)] : null;
+    const anim = this.anim;
+    const frame = anim && anim.frame > 0 ? anim.result.frames![anim.frame - 1] : null;
     const showFree = this.canAim;
-    return this.state.coins.map((c, i) => ({
-      id: c.id,
-      x: frame && this.anim!.frame > 0 ? frame[i * 2] : c.x,
-      y: frame && this.anim!.frame > 0 ? frame[i * 2 + 1] : c.y,
-      rotation: this.rotation.get(c.id)!,
-      metal: this.metal.get(c.id)!,
-      dimmed: showFree && !this.free.has(c.id),
-    }));
+    const out: DrawCoin[] = [];
+    this.state.coins.forEach((c, i) => {
+      if (this.hidden.has(c.id)) return;
+      out.push({
+        id: c.id,
+        x: frame ? frame[i * 2] : c.x,
+        y: frame ? frame[i * 2 + 1] : c.y,
+        ...this.look(c.id),
+        dimmed: showFree && !this.playable(c.id),
+      });
+    });
+    return out;
   }
 
   coinPosition(id: number): Point | null {

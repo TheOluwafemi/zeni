@@ -12,7 +12,7 @@ const KNOBS: Knob[] = [
   { key: "maxSpeed", label: "Max speed", min: 600, max: 3000, step: 50 },
   { key: "friction", label: "Friction", min: 200, max: 2000, step: 25 },
   { key: "coinRestitution", label: "Coin bounce", min: 0.5, max: 1, step: 0.01 },
-  { key: "wallRestitution", label: "Wall bounce", min: 0.1, max: 1, step: 0.05 },
+  { key: "cupRestitution", label: "Cup bounce", min: 0.1, max: 1, step: 0.05 },
   { key: "powerExponent", label: "Power curve", min: 1, max: 2.5, step: 0.05 },
 ];
 

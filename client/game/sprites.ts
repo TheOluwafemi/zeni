@@ -1,6 +1,8 @@
-import { BOARD_SIZE, COIN_RADIUS } from "../../shared/constants";
-import { mulberry32 } from "../../shared/rng";
-import { RIM } from "./view";
+import { COIN_RADIUS, CUP_RADIUS, TABLE_RADIUS } from "../../shared/constants";
+import { woodTexture } from "./wood";
+
+/** Same as the page background, so the table floats in the room. */
+const FLOOR = "#1c120b";
 
 // Everything here is drawn in code: no image files. Sprites are rendered once per
 // canvas size at device resolution, then stamped each frame.
@@ -98,9 +100,9 @@ export function makeCoinSprite(metal: number, scale: number): HTMLCanvasElement 
   return c;
 }
 
-/** Soft round shadow, drawn under each coin with a small offset. */
-export function makeShadowSprite(scale: number): HTMLCanvasElement {
-  const r = COIN_RADIUS * scale;
+/** Soft round shadow for something of radius `radius` (board units). */
+export function makeShadowSprite(radius: number, scale: number): HTMLCanvasElement {
+  const r = radius * scale;
   const size = Math.ceil(r * 2.6);
   const [c, g] = canvas(size);
   const cx = size / 2;
@@ -112,74 +114,125 @@ export function makeShadowSprite(scale: number): HTMLCanvasElement {
   return c;
 }
 
-/** The whole board (rim plus walnut play area) at device resolution. */
+/** A tea cup seen from above: glazed ceramic rim around green tea. */
+export function makeCupSprite(scale: number): HTMLCanvasElement {
+  const r = CUP_RADIUS * scale;
+  const size = Math.ceil(r * 2) + 2;
+  const [c, g] = canvas(size);
+  const cx = size / 2;
+
+  const glaze = g.createRadialGradient(cx - r * 0.4, cx - r * 0.45, r * 0.1, cx, cx, r);
+  glaze.addColorStop(0, "#f4efe2");
+  glaze.addColorStop(0.6, "#d9d1bd");
+  glaze.addColorStop(1, "#8f8672");
+  g.fillStyle = glaze;
+  g.beginPath();
+  g.arc(cx, cx, r, 0, Math.PI * 2);
+  g.fill();
+
+  // Indigo band just inside the lip, like a hand-painted yunomi.
+  g.strokeStyle = "rgba(44, 62, 110, 0.75)";
+  g.lineWidth = r * 0.05;
+  g.beginPath();
+  g.arc(cx, cx, r * 0.9, 0, Math.PI * 2);
+  g.stroke();
+
+  // Inside wall shading, then the tea.
+  const inner = r * 0.76;
+  const wall = g.createRadialGradient(cx, cx, inner * 0.8, cx, cx, inner * 1.05);
+  wall.addColorStop(0, "rgba(0,0,0,0.35)");
+  wall.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = wall;
+  g.beginPath();
+  g.arc(cx, cx, inner * 1.05, 0, Math.PI * 2);
+  g.fill();
+
+  const tea = g.createRadialGradient(cx + inner * 0.2, cx + inner * 0.25, inner * 0.1, cx, cx, inner);
+  tea.addColorStop(0, "#9aa63c");
+  tea.addColorStop(0.7, "#6f7a22");
+  tea.addColorStop(1, "#424a12");
+  g.fillStyle = tea;
+  g.beginPath();
+  g.arc(cx, cx, inner * 0.92, 0, Math.PI * 2);
+  g.fill();
+
+  // Light catching the surface of the tea.
+  g.fillStyle = "rgba(255, 255, 230, 0.28)";
+  g.beginPath();
+  g.ellipse(cx - inner * 0.3, cx - inner * 0.35, inner * 0.32, inner * 0.14, -0.6, 0, Math.PI * 2);
+  g.fill();
+
+  return c;
+}
+
+/** The floor plus the round walnut table, at device resolution. */
 export function makeBoardBackground(px: number, scale: number): HTMLCanvasElement {
   const [c, g] = canvas(px);
-  const rng = mulberry32(7);
-  const rim = RIM * scale;
-  const play = BOARD_SIZE * scale;
+  const cx = px / 2;
+  const r = TABLE_RADIUS * scale;
+  const edge = 14 * scale; // visible thickness of the table top
 
-  // Rim: dark lacquered frame.
-  const frame = g.createLinearGradient(0, 0, px, px);
-  frame.addColorStop(0, "#3a2414");
-  frame.addColorStop(1, "#24160c");
-  g.fillStyle = frame;
+  // Floor: matches the page so the table seems to float in the room's shadow.
+  g.fillStyle = FLOOR;
   g.fillRect(0, 0, px, px);
-  g.strokeStyle = "rgba(255, 220, 170, 0.12)";
-  g.lineWidth = Math.max(1, scale * 3);
-  g.strokeRect(scale * 4, scale * 4, px - scale * 8, px - scale * 8);
 
-  // Play area: walnut with grain.
+  // Soft shadow the table casts on the floor.
   g.save();
-  g.translate(rim, rim);
-  const base = g.createLinearGradient(0, 0, play, play);
-  base.addColorStop(0, "#6b4428");
-  base.addColorStop(1, "#553420");
-  g.fillStyle = base;
-  g.fillRect(0, 0, play, play);
-
+  g.shadowColor = "rgba(0, 0, 0, 0.85)";
+  g.shadowBlur = 40 * scale;
+  g.shadowOffsetY = 22 * scale;
+  g.fillStyle = "#1a0e06";
   g.beginPath();
-  g.rect(0, 0, play, play);
-  g.clip();
-  for (let i = 0; i < 160; i++) {
-    const y = rng() * play;
-    const amp = (4 + rng() * 14) * scale;
-    const freq = 0.002 + rng() * 0.004;
-    const phase = rng() * Math.PI * 2;
-    g.strokeStyle = rng() < 0.7 ? `rgba(40, 22, 10, ${0.06 + rng() * 0.12})` : `rgba(200, 150, 100, ${0.03 + rng() * 0.06})`;
-    g.lineWidth = (0.8 + rng() * 3) * scale;
-    g.beginPath();
-    for (let x = -10; x <= play + 10; x += 12 * scale) {
-      const yy = y + Math.sin(x / scale * freq * Math.PI * 2 + phase) * amp;
-      if (x === -10) g.moveTo(x, yy);
-      else g.lineTo(x, yy);
-    }
-    g.stroke();
-  }
-
-  // Inner shadow where the play area meets the raised rim.
-  const edge = 26 * scale;
-  const sides: [number, number, number, number, number, number, number, number][] = [
-    [0, 0, play, edge, 0, 0, 0, edge],
-    [0, play - edge, play, edge, 0, play, 0, play - edge],
-    [0, 0, edge, play, 0, 0, edge, 0],
-    [play - edge, 0, edge, play, play, 0, play - edge, 0],
-  ];
-  for (const [x, y, w, h, x0, y0, x1, y1] of sides) {
-    const s = g.createLinearGradient(x0, y0, x1, y1);
-    s.addColorStop(0, "rgba(0,0,0,0.45)");
-    s.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = s;
-    g.fillRect(x, y, w, h);
-  }
-
-  // Gentle vignette to pull the eye to the middle.
-  const v = g.createRadialGradient(play / 2, play / 2, play * 0.3, play / 2, play / 2, play * 0.75);
-  v.addColorStop(0, "rgba(0,0,0,0)");
-  v.addColorStop(1, "rgba(0,0,0,0.3)");
-  g.fillStyle = v;
-  g.fillRect(0, 0, play, play);
+  g.arc(cx, cx + edge, r, 0, Math.PI * 2);
+  g.fill();
   g.restore();
+
+  // Table edge: the side of the slab, visible below the top.
+  const side = g.createLinearGradient(0, cx - r, 0, cx + r + edge);
+  side.addColorStop(0, "#2a170b");
+  side.addColorStop(1, "#4a2a15");
+  g.fillStyle = side;
+  g.beginPath();
+  g.arc(cx, cx + edge, r, 0, Math.PI * 2);
+  g.fill();
+
+  // Table top: the wood texture clipped to a circle, grain turned slightly for interest.
+  g.save();
+  g.beginPath();
+  g.arc(cx, cx, r, 0, Math.PI * 2);
+  g.clip();
+  g.translate(cx, cx);
+  g.rotate(-0.12);
+  const wood = woodTexture();
+  const span = r * 2.2;
+  g.drawImage(wood, -span / 2, -span / 2, span, span);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+
+  // Varnish: a broad soft sheen from the top-left, and darker toward the rim.
+  const sheen = g.createRadialGradient(cx - r * 0.35, cx - r * 0.45, r * 0.05, cx - r * 0.2, cx - r * 0.25, r * 1.1);
+  sheen.addColorStop(0, "rgba(255, 236, 205, 0.16)");
+  sheen.addColorStop(0.5, "rgba(255, 236, 205, 0.04)");
+  sheen.addColorStop(1, "rgba(0, 0, 0, 0)");
+  g.fillStyle = sheen;
+  g.fillRect(0, 0, px, px);
+
+  const rim = g.createRadialGradient(cx, cx, r * 0.72, cx, cx, r);
+  rim.addColorStop(0, "rgba(0, 0, 0, 0)");
+  rim.addColorStop(1, "rgba(0, 0, 0, 0.32)");
+  g.fillStyle = rim;
+  g.fillRect(0, 0, px, px);
+  g.restore();
+
+  // Rounded-over lip: lit along the top-left, in shade along the bottom-right.
+  const lip = g.createLinearGradient(cx - r, cx - r, cx + r, cx + r);
+  lip.addColorStop(0, "rgba(255, 220, 175, 0.45)");
+  lip.addColorStop(0.5, "rgba(255, 220, 175, 0.08)");
+  lip.addColorStop(1, "rgba(0, 0, 0, 0.45)");
+  g.strokeStyle = lip;
+  g.lineWidth = 4 * scale;
+  g.beginPath();
+  g.arc(cx, cx, r - 2 * scale, 0, Math.PI * 2);
+  g.stroke();
 
   return c;
 }

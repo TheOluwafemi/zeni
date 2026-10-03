@@ -1,75 +1,61 @@
 import {
-  BOARD_SIZE,
   COIN_RADIUS,
+  CUP_RADIUS,
   DEFAULT_PHYSICS,
   DT,
   MAX_STEPS,
   STOP_SPEED,
+  TABLE_CENTER,
+  TABLE_RADIUS,
   type PhysicsConfig,
 } from "./constants";
-import type { Coin, Shot, ShotResult, SimEvent } from "./types";
+import type { Coin, Cup, Shot, ShotResult, SimEvent, Table } from "./types";
 
-const MIN_POS = COIN_RADIUS;
-const MAX_POS = BOARD_SIZE - COIN_RADIUS;
 const CONTACT = COIN_RADIUS * 2;
+const CUP_CONTACT = COIN_RADIUS + CUP_RADIUS;
 
-/** Advance the world by one fixed timestep. Mutates `coins` and appends to `events`. */
-export function step(coins: Coin[], cfg: PhysicsConfig, events: SimEvent[], stepIndex: number): void {
+/** A coin in the simulation. `off` coins have fallen and no longer take part. */
+interface Body extends Coin {
+  off: boolean;
+}
+
+/** Advance the world by one fixed timestep. Mutates `bodies` and appends to `events`. */
+function step(bodies: Body[], cups: readonly Cup[], cfg: PhysicsConfig, events: SimEvent[], stepIndex: number): void {
   const decel = cfg.friction * DT;
 
-  for (const c of coins) {
+  for (const c of bodies) {
+    if (c.off) continue;
     const speed = Math.hypot(c.vx, c.vy);
-    if (speed > 0) {
-      const k = Math.max(0, speed - decel) / speed;
-      c.vx *= k;
-      c.vy *= k;
-      c.x += c.vx * DT;
-      c.y += c.vy * DT;
-    }
-    bounceWalls(c, cfg, events, stepIndex);
+    if (speed === 0) continue;
+    const k = Math.max(0, speed - decel) / speed;
+    c.vx *= k;
+    c.vy *= k;
+    c.x += c.vx * DT;
+    c.y += c.vy * DT;
   }
 
-  for (let i = 0; i < coins.length; i++) {
-    for (let j = i + 1; j < coins.length; j++) {
-      collide(coins[i], coins[j], cfg, events, stepIndex);
+  for (let i = 0; i < bodies.length; i++) {
+    const a = bodies[i];
+    if (a.off) continue;
+    for (let j = i + 1; j < bodies.length; j++) {
+      if (!bodies[j].off) collide(a, bodies[j], cfg, events, stepIndex);
     }
+    for (const cup of cups) bounceCup(a, cup, cfg, events, stepIndex);
   }
 
-  // Separating overlapping coins can push one into the rim.
-  for (const c of coins) clampInside(c);
-}
-
-function bounceWalls(c: Coin, cfg: PhysicsConfig, events: SimEvent[], stepIndex: number): void {
-  const e = cfg.wallRestitution;
-  if (c.x < MIN_POS) {
-    c.x = MIN_POS;
-    if (c.vx < 0) {
-      events.push({ type: "wall", step: stepIndex, id: c.id, impulse: -c.vx });
-      c.vx = -c.vx * e;
-    }
-  } else if (c.x > MAX_POS) {
-    c.x = MAX_POS;
-    if (c.vx > 0) {
-      events.push({ type: "wall", step: stepIndex, id: c.id, impulse: c.vx });
-      c.vx = -c.vx * e;
-    }
-  }
-  if (c.y < MIN_POS) {
-    c.y = MIN_POS;
-    if (c.vy < 0) {
-      events.push({ type: "wall", step: stepIndex, id: c.id, impulse: -c.vy });
-      c.vy = -c.vy * e;
-    }
-  } else if (c.y > MAX_POS) {
-    c.y = MAX_POS;
-    if (c.vy > 0) {
-      events.push({ type: "wall", step: stepIndex, id: c.id, impulse: c.vy });
-      c.vy = -c.vy * e;
+  // The table has no rim: a coin whose centre crosses the edge falls off.
+  for (const c of bodies) {
+    if (c.off) continue;
+    if ((c.x - TABLE_CENTER) ** 2 + (c.y - TABLE_CENTER) ** 2 > TABLE_RADIUS ** 2) {
+      c.off = true;
+      events.push({ type: "fall", step: stepIndex, id: c.id, vx: c.vx, vy: c.vy });
+      c.vx = 0;
+      c.vy = 0;
     }
   }
 }
 
-function collide(a: Coin, b: Coin, cfg: PhysicsConfig, events: SimEvent[], stepIndex: number): void {
+function collide(a: Body, b: Body, cfg: PhysicsConfig, events: SimEvent[], stepIndex: number): void {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const d2 = dx * dx + dy * dy;
@@ -97,9 +83,25 @@ function collide(a: Coin, b: Coin, cfg: PhysicsConfig, events: SimEvent[], stepI
   events.push({ type: "hit", step: stepIndex, a: a.id, b: b.id, impulse: j });
 }
 
-function clampInside(c: Coin): void {
-  c.x = Math.min(MAX_POS, Math.max(MIN_POS, c.x));
-  c.y = Math.min(MAX_POS, Math.max(MIN_POS, c.y));
+/** Cups are immovable: push the coin out and reflect it. */
+function bounceCup(c: Body, cup: Cup, cfg: PhysicsConfig, events: SimEvent[], stepIndex: number): void {
+  const dx = c.x - cup.x;
+  const dy = c.y - cup.y;
+  const d2 = dx * dx + dy * dy;
+  if (d2 >= CUP_CONTACT * CUP_CONTACT || d2 === 0) return;
+
+  const d = Math.sqrt(d2);
+  const nx = dx / d;
+  const ny = dy / d;
+  c.x = cup.x + nx * CUP_CONTACT;
+  c.y = cup.y + ny * CUP_CONTACT;
+
+  const into = c.vx * nx + c.vy * ny;
+  if (into >= 0) return;
+  const j = -(1 + cfg.cupRestitution) * into;
+  c.vx += nx * j;
+  c.vy += ny * j;
+  events.push({ type: "cup", step: stepIndex, id: c.id, impulse: -into });
 }
 
 export function shotSpeed(power: number, cfg: PhysicsConfig = DEFAULT_PHYSICS): number {
@@ -107,15 +109,15 @@ export function shotSpeed(power: number, cfg: PhysicsConfig = DEFAULT_PHYSICS): 
   return cfg.maxSpeed * Math.pow(p, cfg.powerExponent);
 }
 
-/** Run a shot to completion. Never mutates the input coins. */
+/** Run a shot to completion. Never mutates the input. */
 export function simulateShot(
-  coins: readonly Coin[],
+  table: Table,
   shot: Shot,
   cfg: PhysicsConfig = DEFAULT_PHYSICS,
   recordFrames = false,
 ): ShotResult {
-  const world = coins.map((c) => ({ ...c, vx: 0, vy: 0 }));
-  const shooter = world.find((c) => c.id === shot.coinId);
+  const bodies: Body[] = table.coins.map((c) => ({ ...c, vx: 0, vy: 0, off: false }));
+  const shooter = bodies.find((c) => c.id === shot.coinId);
   if (!shooter) throw new Error(`No coin with id ${shot.coinId}`);
 
   const speed = shotSpeed(shot.power, cfg);
@@ -128,24 +130,23 @@ export function simulateShot(
 
   let steps = 0;
   while (steps < MAX_STEPS) {
-    step(world, cfg, events, steps);
+    step(bodies, table.cups, cfg, events, steps);
     steps++;
-    if (frames) frames.push(snapshot(world));
-    if (world.every((c) => c.vx * c.vx + c.vy * c.vy < stop2)) break;
+    if (frames) frames.push(snapshot(bodies));
+    if (bodies.every((c) => c.off || c.vx * c.vx + c.vy * c.vy < stop2)) break;
   }
 
-  for (const c of world) {
-    c.vx = 0;
-    c.vy = 0;
-  }
-  return { coins: world, events, steps, frames };
+  const fallen: number[] = [];
+  for (const e of events) if (e.type === "fall") fallen.push(e.id);
+  const coins = bodies.filter((c) => !c.off).map(({ id, x, y }) => ({ id, x, y, vx: 0, vy: 0 }));
+  return { coins, fallen, events, steps, frames };
 }
 
-function snapshot(coins: Coin[]): Float32Array {
-  const f = new Float32Array(coins.length * 2);
-  for (let i = 0; i < coins.length; i++) {
-    f[i * 2] = coins[i].x;
-    f[i * 2 + 1] = coins[i].y;
+function snapshot(bodies: Body[]): Float32Array {
+  const f = new Float32Array(bodies.length * 2);
+  for (let i = 0; i < bodies.length; i++) {
+    f[i * 2] = bodies[i].x;
+    f[i * 2 + 1] = bodies[i].y;
   }
   return f;
 }

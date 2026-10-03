@@ -29,7 +29,10 @@
 
       <footer>
         <p id="message" aria-live="polite"></p>
-        <button id="new-game" type="button">New game</button>
+        <div class="new-game" role="group" aria-label="New game">
+          <button type="button" data-difficulty="easy">Easy · 2 cups</button>
+          <button type="button" data-difficulty="hard">Hard · 4 cups</button>
+        </div>
       </footer>
 
       <div id="result" hidden>

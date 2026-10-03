@@ -1,7 +1,7 @@
 import { BOARD_SIZE } from "../../shared/constants";
 
-/** Width of the wooden rim drawn around the play area, in board units. */
-export const RIM = 32;
+/** Floor visible around the table, in board units. Wide enough to see a coin go over the edge. */
+export const RIM = 70;
 const VIEW_SIZE = BOARD_SIZE + RIM * 2;
 
 export interface Point {

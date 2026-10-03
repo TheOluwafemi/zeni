@@ -3,10 +3,18 @@
 export const GAME_NAME = "Zeni";
 export const PROTOCOL_VERSION = 1;
 
-// Board and pieces, in logical units. The board is BOARD_SIZE square with rim walls.
+// Table and pieces, in logical units. The table is round, centred in a BOARD_SIZE square,
+// with an open edge: a coin whose centre crosses the edge falls off.
 export const BOARD_SIZE = 1000;
+export const TABLE_RADIUS = BOARD_SIZE / 2;
+export const TABLE_CENTER = BOARD_SIZE / 2;
 export const COIN_RADIUS = 36;
 export const COIN_COUNT = 10;
+export const CUP_RADIUS = 56;
+
+/** Cups on the table per difficulty. Cups never move and block lines of sight. */
+export const CUPS = { easy: 2, hard: 4 } as const;
+export type Difficulty = keyof typeof CUPS;
 
 // Rules
 export const MAX_SHOTS = 40; // safety net so a game can't go on forever
@@ -24,7 +32,7 @@ export interface PhysicsConfig {
   maxSpeed: number; // units/s at full power
   friction: number; // units/s² of sliding deceleration
   coinRestitution: number; // bounciness of coin-to-coin hits
-  wallRestitution: number; // bounciness of rim hits
+  cupRestitution: number; // bounciness of coin-to-cup hits
   powerExponent: number; // speed = maxSpeed * power^powerExponent
 }
 
@@ -32,6 +40,6 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
   maxSpeed: 1600,
   friction: 850,
   coinRestitution: 0.92,
-  wallRestitution: 0.6,
+  cupRestitution: 0.6,
   powerExponent: 1.4,
 };

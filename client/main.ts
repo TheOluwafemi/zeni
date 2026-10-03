@@ -1,3 +1,4 @@
+import type { Difficulty } from "../shared/constants";
 import { randomSeed } from "../shared/rng";
 import { other } from "../shared/rules";
 import type { Seat } from "../shared/types";
@@ -20,9 +21,11 @@ const params = new URLSearchParams(location.search);
 const fixedSeed = params.has("seed") ? Number(params.get("seed")) >>> 0 : null;
 const nextSeed = () => fixedSeed ?? randomSeed();
 
+let difficulty: Difficulty = params.get("difficulty") === "hard" ? "hard" : "easy";
+
 const view = new BoardView(canvas, wrap);
 const renderer = new Renderer(view);
-const game = new LocalGame(nextSeed());
+const game = new LocalGame(nextSeed(), difficulty);
 let dirty = true;
 
 if (params.has("tune")) mountTuning($("#tune"), game.physics);
@@ -50,10 +53,13 @@ function say(text: string): void {
 }
 
 function startGame(): void {
-  game.reset(nextSeed());
+  game.reset(nextSeed(), difficulty);
   result.hidden = true;
+  for (const b of difficultyButtons) b.classList.toggle("current", b.dataset.difficulty === difficulty);
   updateBars();
-  say(`${NAMES[game.state.turn]} goes first. Drag back from a coin and let go. Hit exactly one coin to keep it.`);
+  say(
+    `${NAMES[game.state.turn]} goes first. Drag back from a coin and let go. Hit exactly one coin to keep it, but anything that falls off goes to your opponent.`,
+  );
   dirty = true;
 }
 
@@ -73,18 +79,35 @@ game.onResolved = ({ shooter, outcome }: Resolved) => {
     setTimeout(showResult, 600);
     return;
   }
-  const next = NAMES[other(shooter)];
-  if (outcome.kind === "capture") {
-    say(`${NAMES[shooter]} keeps a coin! Shoot again.`);
-    navigator.vibrate?.(12);
+  const me = NAMES[shooter];
+  const them = NAMES[other(shooter)];
+  const fell = outcome.fallen.length;
+  const fellText = fell === 1 ? "A coin fell off the table" : `${fell} coins fell off the table`;
+  const gives = `${them} gets ${fell === 1 ? "it" : "them"}`;
+
+  if (outcome.captured !== null) navigator.vibrate?.(12);
+  if (outcome.again) {
+    say(`${me} keeps a coin! Shoot again with the same coin.`);
+  } else if (outcome.blocked) {
+    say(`${me} keeps a coin, but their coin stopped touching another, so it can't go again. ${them}'s turn.`);
+  } else if (outcome.captured !== null) {
+    say(`${me} keeps a coin, but ${fellText.toLowerCase()}. ${gives}, and it's ${them}'s turn.`);
+  } else if (fell > 0) {
+    say(`${fellText}. ${gives}, and it's ${them}'s turn.`);
   } else if (outcome.touched === 0) {
-    say(`No touch. ${next}'s turn.`);
+    say(`No touch. ${them}'s turn.`);
   } else {
-    say(`Touched ${outcome.touched} coins, so none kept. ${next}'s turn.`);
+    say(`Touched ${outcome.touched} coins, so none kept. ${them}'s turn.`);
   }
 };
 
-$("#new-game").addEventListener("click", startGame);
+const difficultyButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-difficulty]")];
+for (const b of difficultyButtons) {
+  b.addEventListener("click", () => {
+    difficulty = b.dataset.difficulty as Difficulty;
+    startGame();
+  });
+}
 $("#play-again").addEventListener("click", startGame);
 
 // --- Input ----------------------------------------------------------------
