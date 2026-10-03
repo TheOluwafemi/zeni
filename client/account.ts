@@ -1,6 +1,7 @@
 // The player card on Home and the sheets behind it: create, restore, settings.
 
 import { api, ApiError, identity, SIGNED_OUT, type Created, type Me } from "./api";
+import { nextTierNote, progressToNext, tierBadge, tierFor } from "./tier";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 
@@ -79,11 +80,22 @@ export function promptForPlayer(): void {
 function renderCard(): void {
   $("#player-out").hidden = me !== null;
   $("#player-in").hidden = me === null;
-  if (me) {
-    $("#player-name").textContent = me.nickname;
-    $("#player-rating").textContent =
-      me.games === 0 ? "Rating 1000 · no games yet" : `Rating ${me.rating} · ${me.wins}W ${me.losses}L${me.position ? ` · #${me.position}` : ""}`;
+  if (!me) return;
+
+  $("#player-name").textContent = me.nickname;
+  $("#player-badge").replaceChildren(tierBadge(me.rating));
+  const climb = $("#player-climb");
+  if (me.games === 0) {
+    $("#player-rating").textContent = "No ranked games yet";
+    climb.hidden = true;
+    return;
   }
+  $("#player-rating").textContent = `${tierFor(me.rating).name} · ${me.rating} · ${me.wins}W ${me.losses}L${me.position ? ` · #${me.position}` : ""}`;
+  climb.hidden = false;
+  const percent = Math.round(progressToNext(me.rating) * 100);
+  $("#climb-fill").style.width = `${percent}%`;
+  climb.querySelector(".climb-bar")!.setAttribute("aria-valuenow", String(percent));
+  $("#climb-note").textContent = nextTierNote(me.rating);
 }
 
 /** Load the signed-in player, if this device has a code. */

@@ -5,6 +5,7 @@
 // storage, sockets, the alarm clock and the database.
 
 import { DurableObject } from "cloudflare:workers";
+import type { Difficulty } from "../shared/constants";
 import { parseClientMsg, type ErrorCode, type ServerMsg } from "../shared/protocol";
 import type { Seat } from "../shared/types";
 import { playerForCode } from "./accounts";
@@ -51,6 +52,17 @@ export class Room extends DurableObject<Env> {
     });
     // Keep-alive pings are answered without waking the object from hibernation.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+  }
+
+  // --- Called by the matchmaker ------------------------------------------------
+
+  /** Open a room reserved for two matched players. False if this code is already in use. */
+  async open(code: string, table: Difficulty, reserved: [string, string]): Promise<boolean> {
+    if (this.core) return false;
+    this.core = new RoomCore(newRoom(code, table, Date.now(), reserved));
+    await this.save();
+    await this.reschedule();
+    return true;
   }
 
   // --- Sockets ----------------------------------------------------------------

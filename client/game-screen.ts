@@ -4,9 +4,11 @@ import { TURN_MS, type OverInfo, type Players, type ServerMsg } from "../shared/
 import { newRoomCode } from "../shared/room-code";
 import { randomSeed } from "../shared/rng";
 import { newGame, other } from "../shared/rules";
+import { tierChange, tierFor } from "../shared/tiers";
 import type { GameState, Seat } from "../shared/types";
 import { sound } from "./audio";
 import { RoomClient, type Fatal, type Link } from "./net";
+import { tierBadge } from "./tier";
 import { ComputerPlayer } from "./game/computer";
 import { LocalGame, type Resolved } from "./game/local-game";
 import { Renderer } from "./game/render";
@@ -59,6 +61,8 @@ interface Online {
   code: string;
   /** What this device asked for, so a code clash can be retried. */
   created: Difficulty | null;
+  /** A Quick Match room: the opponent is already on their way, so there's no code to share. */
+  quick: boolean;
   seat: Seat;
   players: Players;
   status: "waiting" | "playing" | "over";
@@ -106,6 +110,15 @@ function updateBars(opts: { thinking?: boolean; awaiting?: Seat } = {}): void {
   bars.forEach((bar, i) => {
     const seat = i as Seat;
     bar.classList.toggle("active", status === "playing" && turn === seat);
+    const info = isOnline() ? online?.players[seat] : null;
+    const slot = bar.querySelector<HTMLElement>(".badge-slot")!;
+    const chip = bar.querySelector<HTMLElement>(".rating-chip")!;
+    const tierKey = info ? tierFor(info.rating).id : "";
+    if (slot.dataset.tier !== tierKey) {
+      slot.dataset.tier = tierKey;
+      slot.replaceChildren(...(info ? [tierBadge(info.rating)] : []));
+    }
+    chip.textContent = info ? String(info.rating) : "";
     const dropped = isOnline() && online?.players[seat]?.connected === false;
     bar.querySelector(".name")!.textContent =
       name(seat) + (opts.thinking && seat === COMPUTER_SEAT ? " · thinking…" : "") + (dropped ? " · reconnecting…" : "");
@@ -176,6 +189,7 @@ export function start(next: Setup, rematch = false): void {
   $<HTMLButtonElement>("#rematch").disabled = false;
   $<HTMLButtonElement>("#rematch").textContent = "Rematch";
   $("#result-rating").textContent = "";
+  $("#result-tier").replaceChildren();
   shownPips[0] = shownPips[1] = 0;
   for (const bar of bars) bar.querySelector(".pips")!.replaceChildren();
   $("#game-label").textContent =
@@ -322,7 +336,8 @@ function emptyTable(difficulty: Difficulty): GameState {
 }
 
 /** Join or create a room. `create` is the table to open a new room with, or null to join an existing one. */
-export function startOnline(code: string, create: Difficulty | null, attempt = 0): void {
+export function startOnline(code: string, create: Difficulty | null, opts: { attempt?: number; quick?: boolean } = {}): void {
+  const attempt = opts.attempt ?? 0;
   stop();
   const token = ++gameToken;
   running = true;
@@ -344,11 +359,11 @@ export function startOnline(code: string, create: Difficulty | null, attempt = 0
     fatal: (reason) => {
       if (token !== gameToken) return;
       // Someone else already has this code: try another.
-      if (reason === "room_exists" && create && attempt < 3) return startOnline(newRoomCode(), create, attempt + 1);
+      if (reason === "room_exists" && create && attempt < 3) return startOnline(newRoomCode(), create, { attempt: attempt + 1 });
       showFatal(reason);
     },
   });
-  online = { client, code, created: create, seat: 0, players: [null, null], status: "waiting", over: null, rematch: [false, false] };
+  online = { client, code, created: create, quick: !!opts.quick, seat: 0, players: [null, null], status: "waiting", over: null, rematch: [false, false] };
   say(create ? "Opening your room…" : "Joining…");
   updateBars();
   dirty = true;
@@ -357,7 +372,10 @@ export function startOnline(code: string, create: Difficulty | null, attempt = 0
   client.connect();
 }
 
+let noShowTimer = 0;
+
 function leaveRoom(): void {
+  window.clearTimeout(noShowTimer);
   if (!online) return;
   online.client.leave();
   online = null;
@@ -374,12 +392,13 @@ function showLink(l: Link): void {
   conn.hidden = l !== "reconnecting";
 }
 
-function showFatal(reason: Fatal): void {
+function showFatal(reason: Fatal | "no_show"): void {
   const copy: Record<string, [string, string]> = {
     no_room: ["Room not found", "Check the code with your friend. Rooms close after a while if nobody plays."],
     room_full: ["That room is full", "Two people are already playing in it."],
     unauthorized: ["Sign in again", "This device's player code isn't valid. Restore your player from the home screen."],
     signed_out: ["Sign in again", "This device has no player code. Create or restore your player from the home screen."],
+    no_show: ["Your opponent didn't show up", "They may have lost connection. Try Quick Match again."],
     gave_up: ["Connection lost", "We couldn't get back in. If the game was still going, you may have forfeited it."],
   };
   const [title, text] = copy[reason] ?? ["Something went wrong", "Go back and try again."];
@@ -414,8 +433,14 @@ function onServer(msg: ServerMsg): void {
       resetPips(state);
       deadlineAt = msg.deadlineIn === null ? null : Date.now() + msg.deadlineIn;
       updateBars();
-      lobby.hidden = msg.room.status !== "waiting";
-      if (msg.room.status === "waiting") {
+      window.clearTimeout(noShowTimer);
+      lobby.hidden = msg.room.status !== "waiting" || o.quick;
+      if (msg.room.status === "waiting" && o.quick) {
+        // The matchmaker found someone: they're just connecting. Give them a little while.
+        say("Opponent found. Waiting for them to connect…");
+        const token = gameToken;
+        noShowTimer = window.setTimeout(() => token === gameToken && online?.status === "waiting" && showFatal("no_show"), 25_000);
+      } else if (msg.room.status === "waiting") {
         $("#lobby-code").textContent = o.code;
         say("Waiting for a friend to join.");
       } else if (msg.over) {
@@ -433,6 +458,7 @@ function onServer(msg: ServerMsg): void {
       updateBars();
       break;
     case "start":
+      window.clearTimeout(noShowTimer);
       o.status = "playing";
       o.over = null;
       o.rematch = [false, false];
@@ -522,6 +548,18 @@ function showOnlineResult(): void {
   $("#result-rating").textContent = r
     ? `Rating ${r.before[o.seat]} → ${r.after[o.seat]} (${change >= 0 ? "+" : "−"}${Math.abs(change)})`
     : "";
+
+  const tier = $("#result-tier");
+  tier.className = "";
+  tier.replaceChildren();
+  if (r) {
+    const move = tierChange(r.before[o.seat], r.after[o.seat]);
+    if (move !== "same") {
+      const now = tierFor(r.after[o.seat]);
+      tier.className = move === "down" ? "down" : "";
+      tier.append(tierBadge(r.after[o.seat], "large"), document.createTextNode(move === "up" ? `Promoted to ${now.name}!` : `Moved down to ${now.name}`));
+    }
+  }
 
   renderRematch();
   if (result.hidden) {

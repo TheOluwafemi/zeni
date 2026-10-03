@@ -23,6 +23,10 @@ export function testDb(): Db {
       const { stmt, params } = prepared(sql, values);
       return (stmt.get(params) as T | undefined) ?? null;
     },
+    all: async <T>() => {
+      const { stmt, params } = prepared(sql, values);
+      return { results: stmt.all(params) as T[] };
+    },
     run: async () => {
       const { stmt, params } = prepared(sql, values);
       return stmt.run(params);

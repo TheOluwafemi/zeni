@@ -14,7 +14,8 @@
     "ai-match": "tsx tools/ai-match.ts",
     "icons": "tsx tools/make-icons.ts",
     "play-online": "tsx tools/play-online.ts",
-    "bot-room": "tsx tools/bot-room.ts"
+    "bot-room": "tsx tools/bot-room.ts",
+    "play-quick": "tsx tools/play-quick.ts"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",

@@ -3,6 +3,9 @@
 import type { Difficulty } from "./constants";
 import type { GameState, Seat, Shot, ShotOutcome } from "./types";
 
+/** Longest message the server will look at. Real messages are well under 200 bytes. */
+export const MAX_MESSAGE_BYTES = 1000;
+
 /** A player has this long to shoot, counted from when the last shot finishes playing. */
 export const TURN_MS = 20_000;
 /** Extra time for the previous shot's animation to play before the turn clock starts. */
@@ -84,12 +87,34 @@ export type ErrorCode =
   | "not_your_turn"
   | "stale"
   | "illegal"
+  | "already_queued"
   | "version";
 
-// --- Parsing ---------------------------------------------------------------------
+// --- Quick Match queue -------------------------------------------------------------
 
-/** Longest message the server will look at. Real messages are well under 200 bytes. */
-export const MAX_MESSAGE_BYTES = 1000;
+export type QueueClientMsg = { t: "queue"; code: string } | { t: "cancel" };
+export type QueueServerMsg =
+  | { t: "queued"; waiting: number }
+  /** Two players were paired and a room is ready for them: connect to it. */
+  | { t: "matched"; room: string; table: Difficulty }
+  | { t: "error"; error: ErrorCode };
+
+export function parseQueueMsg(raw: unknown): QueueClientMsg | null {
+  if (typeof raw !== "string" || raw.length > MAX_MESSAGE_BYTES) return null;
+  let m: unknown;
+  try {
+    m = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof m !== "object" || m === null) return null;
+  const o = m as Record<string, unknown>;
+  if (o.t === "queue" && typeof o.code === "string" && o.code.length <= 64) return { t: "queue", code: o.code };
+  if (o.t === "cancel") return { t: "cancel" };
+  return null;
+}
+
+// --- Parsing ---------------------------------------------------------------------
 
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 

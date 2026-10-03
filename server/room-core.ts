@@ -47,6 +47,8 @@ export interface RoomRec {
   over: OverInfo | null;
   rematch: [boolean, boolean];
   lastActivity: number;
+  /** For Quick Match rooms: the two players it was made for. Nobody else may take a seat. */
+  reserved?: [string, string] | null;
 }
 
 /** A message and who it's for. */
@@ -76,7 +78,7 @@ export interface Joiner {
   rating: number;
 }
 
-export function newRoom(code: string, table: Difficulty, now: number): RoomRec {
+export function newRoom(code: string, table: Difficulty, now: number, reserved: [string, string] | null = null): RoomRec {
   return {
     code,
     table,
@@ -88,6 +90,7 @@ export function newRoom(code: string, table: Difficulty, now: number): RoomRec {
     over: null,
     rematch: [false, false],
     lastActivity: now,
+    reserved,
   };
 }
 
@@ -135,6 +138,8 @@ export class RoomCore {
   join(player: Joiner, now: number): { seat: Seat; step: Step } | Failure {
     const { rec } = this;
     rec.lastActivity = now;
+
+    if (rec.reserved && !rec.reserved.includes(player.id)) return fail("room_full");
 
     const existing = this.seatOf(player.id);
     if (existing !== null) {

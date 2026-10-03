@@ -2,19 +2,22 @@
 //
 //   npm run bot-room -- --join K7QXM        join a room you made in the browser
 //   npm run bot-room -- --create            make a room, print its code, wait for you to join
+//   npm run bot-room -- --queue easy        join the Quick Match queue, then play whoever it finds
 //   npm run bot-room -- --create --table hard --think 2500
 //
 // Registers a throwaway player each run, so use it against a local database.
 
 import { parseArgs } from "node:util";
 import { newRoomCode } from "../shared/room-code";
-import { Bot, register, server, sleep } from "./online-bot";
+import { Bot, QueueSocket, register, server, sleep } from "./online-bot";
 
 const { values: args } = parseArgs({
   options: {
     base: { type: "string", default: "http://localhost:5173" },
     join: { type: "string" },
     create: { type: "boolean", default: false },
+    queue: { type: "string" },
+    rating: { type: "string" },
     table: { type: "string", default: "easy" },
     think: { type: "string", default: "1800" },
     name: { type: "string" },
@@ -22,8 +25,8 @@ const { values: args } = parseArgs({
   },
 });
 
-if (!args.join && !args.create) {
-  console.error("Say --join CODE or --create");
+if (!args.join && !args.create && !args.queue) {
+  console.error("Say --join CODE, --create or --queue easy|hard");
   process.exit(1);
 }
 
@@ -33,9 +36,19 @@ const account = await register(srv, nickname);
 const bot = new Bot(srv, nickname, account.code, Date.now() & 0xffff);
 bot.thinkMs = Number(args.think);
 
-const room = (args.join ?? newRoomCode()).toUpperCase();
-await bot.connect(room, args.create ? (args.table as "easy" | "hard") : undefined);
-console.log(args.create ? `Room ${room}  (open ${args.base}/r/${room})` : `Joined ${room} as ${nickname}`);
+let room: string;
+if (args.queue) {
+  const q = new QueueSocket(srv, nickname, account.code);
+  await q.join(args.queue === "hard" ? "hard" : "easy");
+  console.log(`${nickname} is in the ${args.queue} queue, waiting for an opponent…`);
+  room = (await q.waitFor("matched", 10 * 60_000)).room;
+  console.log(`Matched! Room ${room}`);
+  await bot.connect(room);
+} else {
+  room = (args.join ?? newRoomCode()).toUpperCase();
+  await bot.connect(room, args.create ? (args.table as "easy" | "hard") : undefined);
+  console.log(args.create ? `Room ${room}  (open ${args.base}/r/${room})` : `Joined ${room} as ${nickname}`);
+}
 
 let wasOver = false;
 for (;;) {

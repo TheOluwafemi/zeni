@@ -17,12 +17,17 @@
       "migrations_dir": "migrations"
     }
   ],
-  // One Durable Object per game room. It holds both players' sockets and plays every shot.
+  // A Durable Object per game room (holds both players' sockets and plays every shot), plus the Quick Match queue.
   "durable_objects": {
-    "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+    "bindings": [
+      { "name": "ROOM", "class_name": "Room" },
+      { "name": "MATCHMAKER", "class_name": "Matchmaker" }
+    ]
   },
   "exports": {
-    "Room": { "type": "durable-object", "storage": "sqlite" }
+    "Room": { "type": "durable-object", "storage": "sqlite" },
+    // The Quick Match queue, one per table. Its state lives in its sockets, but the class still needs a backend.
+    "Matchmaker": { "type": "durable-object", "storage": "sqlite" }
   },
   "observability": {
     "enabled": true

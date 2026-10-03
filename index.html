@@ -53,8 +53,12 @@
           </div>
           <div id="player-in" hidden>
             <div class="who">
-              <strong id="player-name"></strong>
+              <div class="who-name"><span id="player-badge"></span><strong id="player-name"></strong></div>
               <span id="player-rating" class="muted"></span>
+              <div class="climb" id="player-climb" hidden>
+                <div class="climb-bar" role="progressbar" aria-label="Progress to the next tier" aria-valuemin="0" aria-valuemax="100"><span id="climb-fill"></span></div>
+                <span id="climb-note" class="muted small"></span>
+              </div>
             </div>
             <button type="button" id="open-settings">Settings</button>
           </div>
@@ -62,14 +66,18 @@
 
         <div class="card" id="online-card">
           <h2>Play online</h2>
-          <button type="button" class="primary wide" id="online-create">Create a room</button>
-          <p class="muted small">Uses the table chosen above. You'll get a link to send a friend.</p>
+          <button type="button" class="primary wide" id="quick-match">Quick Match</button>
+          <p class="muted small">Play a stranger of a similar rating on the table chosen above. Counts for your rank.</p>
+          <button type="button" class="wide" id="online-create">Play a friend: create a room</button>
+          <p class="muted small">You'll get a link to send them. Also counts for your rank.</p>
           <form id="online-join" class="row" novalidate>
             <input id="online-code" class="field code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Room code" aria-label="Room code" />
             <button type="submit">Join</button>
           </form>
           <p id="online-status" class="status" aria-live="polite"></p>
         </div>
+
+        <button type="button" id="open-leaderboard">Leaderboard</button>
 
         <div class="row">
           <button type="button" id="open-howto">How to play</button>
@@ -94,7 +102,9 @@
 
       <section class="player" data-seat="1">
         <span class="turn-dot" aria-hidden="true"></span>
+        <span class="badge-slot"></span>
         <span class="name"></span>
+        <span class="rating-chip"></span>
         <span class="pips" aria-hidden="true"></span>
         <span class="clock" aria-hidden="true"></span>
         <span class="score" aria-label="Coins kept">0</span>
@@ -106,7 +116,9 @@
 
       <section class="player" data-seat="0">
         <span class="turn-dot" aria-hidden="true"></span>
+        <span class="badge-slot"></span>
         <span class="name"></span>
+        <span class="rating-chip"></span>
         <span class="pips" aria-hidden="true"></span>
         <span class="clock" aria-hidden="true"></span>
         <span class="score" aria-label="Coins kept">0</span>
@@ -122,6 +134,7 @@
         <p id="result-score"></p>
         <p id="result-note"></p>
         <p id="result-rating"></p>
+        <p id="result-tier"></p>
         <div class="row">
           <button type="button" id="result-home">Home</button>
           <button type="button" class="primary" id="rematch">Rematch</button>
@@ -243,6 +256,28 @@
         </div>
 
         <button type="button" class="primary wide" id="settings-close">Done</button>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="sheet-leaderboard" class="overlay" hidden>
+      <div class="card dialog board" role="dialog" aria-modal="true" aria-labelledby="board-title">
+        <h3 id="board-title" class="title">Leaderboard</h3>
+        <p id="board-status" class="muted" role="status"></p>
+        <ol id="board-list" class="board-list"></ol>
+        <div id="board-me" class="board-row me pinned" hidden></div>
+        <button type="button" class="primary wide" id="board-close">Done</button>
+      </div>
+    </div>
+
+    <!-- Quick Match: looking for an opponent -->
+    <div id="sheet-queue" class="overlay" hidden>
+      <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="queue-title">
+        <div class="spinner" aria-hidden="true"></div>
+        <h3 id="queue-title" class="title">Finding a match</h3>
+        <p id="queue-text" class="muted" role="status"></p>
+        <button type="button" class="wide" id="queue-computer" hidden>Play the computer while you wait</button>
+        <button type="button" class="link" id="queue-cancel">Cancel</button>
       </div>
     </div>
 

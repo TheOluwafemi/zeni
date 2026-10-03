@@ -78,6 +78,25 @@ describe("joining", () => {
   });
 });
 
+describe("a room reserved for two players (Quick Match)", () => {
+  const cy: Joiner = { id: "cy", nickname: "Cyd", rating: 1000 };
+
+  test("only the two it was made for can sit down", () => {
+    const core = new RoomCore(newRoom("QM123", "easy", T0, ["ada", "bea"]), () => 7);
+    expect(core.join(cy, T0)).toEqual({ error: "room_full" });
+    expect(isFailure(core.join(bea, T0))).toBe(false);
+    expect(core.rec.seats[0]?.playerId).toBe("bea"); // seats go in order of arrival
+    expect(core.join(cy, T0)).toEqual({ error: "room_full" }); // still turned away with a seat free
+    expect(isFailure(core.join(ada, T0))).toBe(false);
+    expect(core.rec.status).toBe("playing");
+  });
+
+  test("an ordinary room lets anyone in until it's full", () => {
+    const core = new RoomCore(newRoom("FR123", "easy", T0), () => 7);
+    expect(isFailure(core.join(cy, T0))).toBe(false);
+  });
+});
+
 describe("shots", () => {
   test("only the player whose turn it is may shoot, with the right sequence number", () => {
     const { core } = seated();

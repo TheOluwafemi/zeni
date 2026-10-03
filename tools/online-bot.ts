@@ -2,7 +2,7 @@
 // Used by play-online.ts (automated checks) and bot-room.ts (to play against from the browser).
 
 import { DEFAULT_PHYSICS } from "../shared/constants";
-import type { ClientMsg, OverInfo, ServerMsg } from "../shared/protocol";
+import type { ClientMsg, OverInfo, QueueServerMsg, ServerMsg } from "../shared/protocol";
 import { mulberry32 } from "../shared/rng";
 import type { GameState } from "../shared/types";
 import { botShot } from "./bot";
@@ -117,3 +117,47 @@ export class Bot {
   }
 }
 
+
+/** A connection to the Quick Match queue. */
+export class QueueSocket {
+  ws!: WebSocket;
+  inbox: QueueServerMsg[] = [];
+  closed: { code: number } | null = null;
+
+  constructor(
+    readonly srv: Server,
+    readonly name: string,
+    readonly playerCode: string,
+  ) {}
+
+  join(table: "easy" | "hard"): Promise<void> {
+    this.ws = new WebSocket(`${this.srv.ws}/ws/queue/${table}`);
+    this.ws.addEventListener("message", (e) => this.inbox.push(JSON.parse(String(e.data)) as QueueServerMsg));
+    this.ws.addEventListener("close", (e) => (this.closed = { code: e.code }));
+    return new Promise((resolve, reject) => {
+      this.ws.addEventListener("open", () => {
+        this.ws.send(JSON.stringify({ t: "queue", code: this.playerCode }));
+        resolve();
+      });
+      this.ws.addEventListener("error", () => reject(new Error(`${this.name}: queue socket error`)));
+    });
+  }
+
+  cancel(): void {
+    this.ws.send(JSON.stringify({ t: "cancel" }));
+  }
+
+  async waitFor<T extends QueueServerMsg["t"]>(t: T, ms = 8000): Promise<Extract<QueueServerMsg, { t: T }>> {
+    const start = Date.now();
+    for (;;) {
+      const found = this.inbox.find((m) => m.t === t);
+      if (found) return found as Extract<QueueServerMsg, { t: T }>;
+      if (Date.now() - start > ms) throw new Error(`${this.name}: timed out waiting for "${t}" from the queue`);
+      await sleep(10);
+    }
+  }
+
+  get matched(): boolean {
+    return this.inbox.some((m) => m.t === "matched");
+  }
+}

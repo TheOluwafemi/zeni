@@ -7,6 +7,8 @@ import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
 import { start, startOnline, setOnExit, type Opponent } from "./game-screen";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
 import { setupInstall } from "./install";
+import { openLeaderboard } from "./leaderboard";
+import { openQuickMatch } from "./quick-match";
 import { makeCoinSprite } from "./game/sprites";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -120,6 +122,21 @@ function joinRoom(code: string): void {
   show("game");
   startOnline(code, null);
 }
+
+$("#quick-match").addEventListener("click", () =>
+  needPlayer(() => {
+    sound.unlock();
+    openQuickMatch(table, {
+      matched: (room) => {
+        show("game");
+        startOnline(room, null, { quick: true });
+      },
+      computer: () => play(level),
+    });
+  }),
+);
+
+$("#open-leaderboard").addEventListener("click", openLeaderboard);
 
 $("#online-create").addEventListener("click", () =>
   needPlayer(() => {

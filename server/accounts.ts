@@ -14,6 +14,7 @@ export interface Db {
 export interface Stmt {
   bind(...values: unknown[]): Stmt;
   first<T = Record<string, unknown>>(): Promise<T | null>;
+  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
   run(): Promise<unknown>;
 }
 
