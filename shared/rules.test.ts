@@ -134,7 +134,8 @@ describe("resolveShot", () => {
     // Shoot right into the cup; the rebound carries the shooter back into coin 1.
     const coins = [coin(0, 300, 500), coin(1, 224, 500), coin(2, 800, 850)];
     const cups = [{ x: 500, y: 500 }];
-    const shot = { coinId: 0, angle: 0, power: 0.8 };
+    // 0.65 sits mid-way in the band (about 0.6 to 0.7) where the rebound reaches coin 1 without driving it off the table.
+    const shot = { coinId: 0, angle: 0, power: 0.65 };
     const result = simulateShot({ coins, cups }, shot);
     expect(result.events.some((e) => e.type === "cup")).toBe(true);
     const { outcome } = resolveShot(stateWith(coins, {}, cups), shot, result);

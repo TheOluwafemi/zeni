@@ -78,6 +78,57 @@ describe("joining", () => {
   });
 });
 
+describe("a creator who is away when a friend joins (sharing the link means leaving the page)", () => {
+  const MIN = 60_000;
+
+  test("the game waits for both players to be present instead of forfeiting the one who is away", () => {
+    const core = setup();
+    core.join(ada, T0);
+    core.setOnline(0, false, T0 + 5_000); // Ada leaves to send the link; the phone drops her connection
+    const joined = core.join(bea, T0 + 3 * MIN); // Bea taps the link three minutes later
+
+    expect(isFailure(joined)).toBe(false);
+    expect(core.rec.status).toBe("waiting"); // no game yet: one of them isn't here
+    expect(core.rec.state).toBeNull();
+    expect(core.tick(T0 + 3 * MIN + 100).finished).toBe(false); // and certainly no instant forfeit
+    expect(core.tick(T0 + 3 * MIN + 31_000).finished).toBe(false); // not even once 30 seconds pass
+    expect(core.players()).toEqual([
+      { nickname: "Ada", rating: 1000, connected: false },
+      { nickname: "Bea", rating: 1100, connected: true },
+    ]);
+  });
+
+  test("the game starts the moment the missing player comes back", () => {
+    const core = setup();
+    core.join(ada, T0);
+    core.setOnline(0, false, T0 + 5_000);
+    core.join(bea, T0 + 3 * MIN);
+
+    const back = core.join(ada, T0 + 4 * MIN);
+    if (isFailure(back)) throw new Error(back.error);
+    expect(core.rec.status).toBe("playing");
+    expect(kinds(back.step.out)).toContain("start");
+    expect(core.rec.seats[0]!.offlineSince).toBeNull();
+    expect(core.rec.deadline).toBe(T0 + 4 * MIN + TURN_MS + ANIM_GRACE_MS); // a fresh clock, from when the game began
+  });
+
+  test("a room whose creator never returns just expires; nobody is ranked", () => {
+    const core = setup();
+    core.join(ada, T0);
+    core.setOnline(0, false, T0 + 5_000);
+    core.join(bea, T0 + 3 * MIN);
+    expect(core.tick(T0 + 3 * MIN + ROOM_IDLE_MS).expired).toBe(true);
+    expect(core.rec.over).toBeNull();
+  });
+
+  test("the other way round: the joiner drops before the creator returns, and the game still waits", () => {
+    const core = setup();
+    core.join(ada, T0);
+    core.join(bea, T0 + 1000); // game starts at once: both present
+    expect(core.rec.status).toBe("playing");
+  });
+});
+
 describe("a room reserved for two players (Quick Match)", () => {
   const cy: Joiner = { id: "cy", nickname: "Cyd", rating: 1000 };
 

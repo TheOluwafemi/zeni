@@ -147,17 +147,25 @@ export class RoomCore {
       seat.nickname = player.nickname;
       seat.rating = player.rating;
       seat.offlineSince = null;
-      return { seat: existing, step: { ...NOTHING, out: [{ to: "all", msg: { t: "players", players: this.players() } }] } };
+      return { seat: existing, step: { ...NOTHING, out: this.announce(now) } };
     }
 
     const free = rec.seats[0] === null ? 0 : rec.seats[1] === null ? 1 : null;
     if (free === null) return fail("room_full");
     rec.seats[free] = { playerId: player.id, nickname: player.nickname, rating: player.rating, timeouts: 0, offlineSince: null };
 
-    if (rec.seats[0] && rec.seats[1]) {
-      return { seat: free, step: { ...NOTHING, out: this.startGame(now, undefined) } };
-    }
-    return { seat: free, step: { ...NOTHING, out: [{ to: "all", msg: { t: "players", players: this.players() } }] } };
+    return { seat: free, step: { ...NOTHING, out: this.announce(now) } };
+  }
+
+  /**
+   * Tell everyone who is here, and start the game if both players are present. A game never starts
+   * with someone missing: sharing a link means leaving the page, so a creator is often away when
+   * their friend arrives. The friend waits, and the game begins the moment the creator is back.
+   */
+  private announce(now: number): Out[] {
+    const { rec } = this;
+    const ready = rec.status === "waiting" && rec.seats[0]?.offlineSince === null && rec.seats[1]?.offlineSince === null;
+    return ready ? this.startGame(now, undefined) : [{ to: "all", msg: { t: "players", players: this.players() } }];
   }
 
   /** A seat's connection came or went. Dropping starts the clock for forfeiting. */
@@ -167,7 +175,7 @@ export class RoomCore {
     if (online === (s.offlineSince === null)) return NOTHING;
     s.offlineSince = online ? null : now;
     this.rec.lastActivity = now;
-    return { ...NOTHING, out: [{ to: "all", msg: { t: "players", players: this.players() } }] };
+    return { ...NOTHING, out: this.announce(now) };
   }
 
   private startGame(now: number, first: Seat | undefined): Out[] {

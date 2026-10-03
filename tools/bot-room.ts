@@ -4,6 +4,7 @@
 //   npm run bot-room -- --create            make a room, print its code, wait for you to join
 //   npm run bot-room -- --queue easy        join the Quick Match queue, then play whoever it finds
 //   npm run bot-room -- --create --table hard --think 2500
+//   npm run bot-room -- --create --away 20000   open a room, leave for 20 seconds (as if sending the link), come back
 //
 // Registers a throwaway player each run, so use it against a local database.
 
@@ -22,6 +23,7 @@ const { values: args } = parseArgs({
     think: { type: "string", default: "1800" },
     name: { type: "string" },
     rematch: { type: "boolean", default: true },
+    away: { type: "string" },
   },
 });
 
@@ -48,6 +50,15 @@ if (args.queue) {
   room = (args.join ?? newRoomCode()).toUpperCase();
   await bot.connect(room, args.create ? (args.table as "easy" | "hard") : undefined);
   console.log(args.create ? `Room ${room}  (open ${args.base}/r/${room})` : `Joined ${room} as ${nickname}`);
+}
+
+if (args.away && args.create) {
+  await sleep(500);
+  bot.ws.close(1000);
+  console.log(`Stepped away for ${Number(args.away) / 1000}s…`);
+  await sleep(Number(args.away));
+  await bot.connect(room);
+  console.log("Back.");
 }
 
 let wasOver = false;

@@ -10,7 +10,13 @@ import { parseArgs } from "node:util";
 import { newRoomCode } from "../shared/room-code";
 import { Bot, me, register, server, sleep } from "./online-bot";
 
-const { values: args } = parseArgs({ options: { base: { type: "string", default: "http://localhost:5173" } } });
+const { values: args } = parseArgs({
+  options: {
+    base: { type: "string", default: "http://localhost:5173" },
+    // Also wait out the 30 second grace period in the "creator is away" check (adds about 35 seconds).
+    slow: { type: "boolean", default: false },
+  },
+});
 const BASE = args.base!;
 const srv = server(BASE);
 
@@ -28,6 +34,34 @@ async function main(): Promise<void> {
   const ada = new Bot(srv, "Ada", adaAcct.code, 1);
   const bea = new Bot(srv, "Bea", beaAcct.code, 2);
   const room = newRoomCode();
+
+  console.log("A creator who leaves to send the link, before the friend arrives");
+  {
+    const away = new Bot(srv, "Away", adaAcct.code, 11);
+    const friend = new Bot(srv, "Friend", beaAcct.code, 12);
+    away.autoplay = friend.autoplay = false;
+    const awayRoom = newRoomCode();
+    await away.connect(awayRoom, "easy");
+    await away.waitFor("welcome");
+    away.ws.close(1000); // the phone suspends the page while they're in their messaging app
+    await sleep(400);
+
+    await friend.connect(awayRoom);
+    const fw = await friend.waitFor("welcome");
+    check("the friend can join while the creator is away", fw.room.status === "waiting" && fw.you === 1);
+    check("and sees that the creator isn't connected", fw.players[0]?.connected === false && fw.players[1]?.connected === true);
+    await sleep(args.slow ? 35_000 : 1500);
+    check(args.slow ? "no game starts, and nobody is forfeited, even after the 30 second grace period" : "no game starts while one of them is away", !friend.inbox.some((m) => m.t === "start" || m.t === "over"));
+
+    const mark = friend.inbox.length;
+    await away.connect(awayRoom); // back from the messaging app
+    const [back, started] = await Promise.all([away.waitFor("welcome", 8000, 0), friend.waitFor("start", 8000, mark)]);
+    check("the creator returns to their own seat", back.you === 0);
+    check("and the game starts the moment they're back", started.state.shots === 0 && started.players[0]?.connected === true);
+    away.ws.close(1000);
+    friend.ws.close(1000);
+    console.log("");
+  }
 
   console.log("Setting up a room");
   await ada.connect(room, "easy");

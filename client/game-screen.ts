@@ -434,15 +434,16 @@ function onServer(msg: ServerMsg): void {
       deadlineAt = msg.deadlineIn === null ? null : Date.now() + msg.deadlineIn;
       updateBars();
       window.clearTimeout(noShowTimer);
-      lobby.hidden = msg.room.status !== "waiting" || o.quick;
+      // The code is only useful while there's a seat to fill; once both are taken, nobody needs it.
+      lobby.hidden = msg.room.status !== "waiting" || o.quick || waitingForAbsentPlayer();
       if (msg.room.status === "waiting" && o.quick) {
         // The matchmaker found someone: they're just connecting. Give them a little while.
-        say("Opponent found. Waiting for them to connect…");
+        sayWaiting();
         const token = gameToken;
         noShowTimer = window.setTimeout(() => token === gameToken && online?.status === "waiting" && showFatal("no_show"), 25_000);
       } else if (msg.room.status === "waiting") {
         $("#lobby-code").textContent = o.code;
-        say("Waiting for a friend to join.");
+        sayWaiting();
       } else if (msg.over) {
         say("Game over.");
         showOnlineResult();
@@ -456,6 +457,12 @@ function onServer(msg: ServerMsg): void {
     case "players":
       o.players = msg.players;
       updateBars();
+      if (o.status === "waiting") {
+        // A friend arrived while we were waiting for them, or someone dropped before the game began.
+        lobby.hidden = o.quick || waitingForAbsentPlayer();
+        if (!lobby.hidden) $("#lobby-code").textContent = o.code;
+        sayWaiting();
+      }
       break;
     case "start":
       window.clearTimeout(noShowTimer);
@@ -505,6 +512,20 @@ function onServer(msg: ServerMsg): void {
       // A rejected move is followed by a fresh snapshot, which puts the board right.
       break;
   }
+}
+
+/** Both players have a seat but one isn't connected, so the game is waiting for them to come back. */
+function waitingForAbsentPlayer(): boolean {
+  const o = online;
+  return !!o && o.status === "waiting" && !!o.players[0] && !!o.players[1];
+}
+
+function sayWaiting(): void {
+  const o = online;
+  if (!o) return;
+  if (waitingForAbsentPlayer()) say(`Waiting for ${name(other(o.seat))} to come back…`);
+  else if (o.quick) say("Opponent found. Waiting for them to connect…");
+  else say("Waiting for a friend to join.");
 }
 
 /** The countdown in the active player's bar. */

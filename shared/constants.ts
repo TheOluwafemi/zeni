@@ -36,9 +36,11 @@ export interface PhysicsConfig {
   powerExponent: number; // speed = maxSpeed * power^powerExponent
 }
 
+// Tuned by hand with ?tune on a real device. Both the client and the server simulate with these,
+// so changing them changes every game (and a phone running an older build will briefly disagree with the server).
 export const DEFAULT_PHYSICS: PhysicsConfig = {
-  maxSpeed: 1600,
-  friction: 850,
+  maxSpeed: 2600,
+  friction: 1575,
   coinRestitution: 0.92,
   cupRestitution: 0.6,
   powerExponent: 1.4,
