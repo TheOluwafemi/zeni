@@ -138,7 +138,17 @@ export class Matchmaker extends DurableObject<Env> {
       .map((s) => ({ ...s, playerId: s.att.queued!.playerId, rating: s.att.queued!.rating, since: s.att.queued!.since }));
   }
 
+  /** Tell the presence counter how many are waiting on this table. Best effort: never blocks the queue. */
+  private reportSize(): void {
+    // This object is named after its table ("easy" or "hard"), which survives hibernation.
+    const table: Difficulty = this.ctx.id.name === "hard" ? "hard" : "easy";
+    this.env.PRESENCE.getByName("global")
+      .setSearching(table, this.waiting().length)
+      .catch(() => {});
+  }
+
   private async reschedule(): Promise<void> {
+    this.reportSize();
     const now = Date.now();
     const queue: Waiting[] = this.waiting().map((w) => ({ id: w.playerId, rating: w.rating, since: w.since }));
     const at = nextRetry(queue, now);

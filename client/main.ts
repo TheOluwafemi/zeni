@@ -11,6 +11,7 @@ import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./a
 import { setupInstall } from "./install";
 import { openLeaderboard } from "./leaderboard";
 import { openQuickMatch } from "./quick-match";
+import { describePresence, latestPresence, pingSoon, startPresence } from "./presence";
 import { makeCoinSprite } from "./game/sprites";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -82,7 +83,16 @@ function bindSegment(group: string, current: string, onPick: (v: string) => void
 }
 
 bindSegment("level", level, (v) => save("zeni.level", (level = v as AiLevel)));
-bindSegment("table", table, (v) => save("zeni.table", (table = v as Difficulty)));
+bindSegment("table", table, (v) => {
+  save("zeni.table", (table = v as Difficulty));
+  renderPresence();
+});
+
+function renderPresence(): void {
+  const info = latestPresence();
+  $("#presence").textContent = info ? describePresence(info, table) : "";
+}
+startPresence(renderPresence);
 
 $("#play-computer").addEventListener("click", () => play(level));
 $("#play-friend").addEventListener("click", () => play("friend"));
@@ -135,6 +145,7 @@ function joinRoom(code: string): void {
 $("#quick-match").addEventListener("click", () =>
   needPlayer(() => {
     sound.unlock();
+    pingSoon();
     openQuickMatch(table, {
       matched: (room) => {
         show("game", "online");
