@@ -19,7 +19,7 @@ function check(name: string, ok: boolean, detail = ""): void {
 
 async function main(): Promise<void> {
   const tag = Math.random().toString(36).slice(2, 7);
-  const names = ["ada", "bea", "cyd", "dov", "eli"];
+  const names = ["ada", "bea", "cyd", "dov", "eli", "fay", "gus", "hal", "ivy", "jon"];
   const accounts = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await register(srv, `${n}_${tag}`)])));
   console.log(`\nQuick Match against ${srv.base}\n`);
 
@@ -97,6 +97,37 @@ async function main(): Promise<void> {
   check("the third is still waiting", waiting.closed === null);
   waiting.cancel();
 
+  console.log("\nOffers: someone playing the computer while they wait is asked first");
+  const fay = new QueueSocket(srv, "Fay", accounts.fay.code, false);
+  const gus = new QueueSocket(srv, "Gus", accounts.gus.code);
+  await fay.join("easy");
+  await gus.join("easy");
+  const offer = await fay.waitFor("offer");
+  check("both are offered the other, with a name and a rating", offer.opponent.nickname === `gus_${tag}` && offer.expiresIn > 0, JSON.stringify(offer));
+  fay.answer(offer.offer, false);
+  const cancelled = await gus.waitFor("offer_cancelled");
+  await sleep(150);
+  check("saying no leaves the queue", fay.closed?.code === 1000, JSON.stringify(fay.closed));
+  check("and the other player is told, and stays in line", cancelled.reason === "declined" && gus.closed === null && !gus.matched);
+
+  const hal = new QueueSocket(srv, "Hal", accounts.hal.code, false);
+  await hal.join("easy");
+  const offer2 = await hal.waitFor("offer");
+  await sleep(500);
+  check("no room until both have said yes", !gus.matched && !hal.matched);
+  hal.answer(offer2.offer, true);
+  const [g, h] = await Promise.all([gus.waitFor("matched"), hal.waitFor("matched")]);
+  check("once both say yes they get the same room", g.room === h.room, `${g.room} vs ${h.room}`);
+
+  const ivy = new QueueSocket(srv, "Ivy", accounts.ivy.code, false);
+  const jon = new QueueSocket(srv, "Jon", accounts.jon.code, false);
+  await ivy.join("easy");
+  await jon.join("easy");
+  const offer3 = await ivy.waitFor("offer");
+  console.log(`    (waiting ${Math.round(offer3.expiresIn / 1000)}s for an offer nobody answers)`);
+  await sleep(offer3.expiresIn + 1500);
+  check("an offer nobody answers removes both from the queue", ivy.closed?.code === 4408 && jon.closed?.code === 4408, JSON.stringify([ivy.closed, jon.closed]));
+
   console.log("\nThe leaderboard");
   const board = (await (await fetch(`${srv.base}/api/leaderboard`)).json()) as { players: { rank: number; nickname: string; rating: number; games: number }[] };
   const mine = board.players.filter((p) => p.nickname.endsWith(`_${tag}`));
@@ -104,7 +135,7 @@ async function main(): Promise<void> {
   check("with the winner above the loser", mine.length === 2 && mine[0].rating > mine[1].rating && mine[0].rank < mine[1].rank);
   check("and no one who hasn't played", !board.players.some((p) => p.nickname === `eli_${tag}` || p.nickname === `cyd_${tag}`));
 
-  for (const s of [...q, adaAgain, bea]) try { s.ws.close(); } catch { /* already closed */ }
+  for (const s of [...q, adaAgain, bea, gus, hal]) try { s.ws.close(); } catch { /* already closed */ }
   for (const b of [adaBot, beaBot]) b.ws.close(1000);
   console.log(failures === 0 ? "\nAll good.\n" : `\n${failures} check(s) failed.\n`);
   process.exit(failures === 0 ? 0 : 1);

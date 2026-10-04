@@ -1,6 +1,7 @@
 // The messages between a player's phone and a room on the server.
 
 import type { Difficulty } from "./constants";
+import { isReactionId, type ReactionId } from "./reactions";
 import type { GameState, Seat, Shot, ShotOutcome } from "./types";
 
 /** Longest message the server will look at. Real messages are well under 200 bytes. */
@@ -49,7 +50,18 @@ export type ClientMsg =
   /** `seq` is the number of shots played so far, so a stale or repeated shot is ignored. */
   | { t: "shot"; seq: number; coinId: number; angle: number; power: number }
   | { t: "resign" }
-  | { t: "rematch" };
+  | { t: "rematch" }
+  /** Live aim while lining up a shot, so the opponent can watch. Relayed, never simulated or stored. */
+  | { t: "aim"; seq: number; coinId: number; angle: number; power: number }
+  /** Stopped aiming without shooting (a shot ends the aim on its own). */
+  | { t: "aim_end"; seq: number }
+  /** A preset reaction ("Nice shot!", 👏…) for the other player. */
+  | { t: "react"; r: ReactionId };
+
+/** How often a phone sends its aim while dragging. */
+export const AIM_SEND_MS = 125;
+/** The room drops aim updates that come faster than this from one player. */
+export const AIM_MIN_GAP_MS = 60;
 
 // --- Server → phone ---------------------------------------------------------------
 
@@ -75,6 +87,10 @@ export type ServerMsg =
   | { t: "turn"; state: GameState; deadlineIn: number; timeouts: number; who: Seat }
   | { t: "over"; over: OverInfo }
   | { t: "rematch"; votes: [boolean, boolean] }
+  /** The other player's live aim. */
+  | { t: "aim"; by: Seat; coinId: number; angle: number; power: number }
+  | { t: "aim_end"; by: Seat }
+  | { t: "react"; by: Seat; r: ReactionId }
   | { t: "error"; error: ErrorCode };
 
 export type ErrorCode =
@@ -92,10 +108,20 @@ export type ErrorCode =
 
 // --- Quick Match queue -------------------------------------------------------------
 
-export type QueueClientMsg = { t: "queue"; code: string } | { t: "cancel" };
+export type QueueClientMsg =
+  | { t: "queue"; code: string }
+  | { t: "cancel" }
+  /** Say yes or no to an offered match. */
+  | { t: "accept"; offer: string }
+  | { t: "decline"; offer: string };
+
 export type QueueServerMsg =
   | { t: "queued"; waiting: number }
-  /** Two players were paired and a room is ready for them: connect to it. */
+  /** An opponent was found. Accept within `expiresIn` ms, or you leave the queue. */
+  | { t: "offer"; offer: string; table: Difficulty; expiresIn: number; opponent: { nickname: string; rating: number } }
+  /** The offer fell through on the other side; you're back in the queue, in your old place. */
+  | { t: "offer_cancelled"; reason: "declined" | "expired" | "left" | "server" }
+  /** Both accepted and a room is ready: connect to it. */
   | { t: "matched"; room: string; table: Difficulty }
   | { t: "error"; error: ErrorCode };
 
@@ -111,6 +137,7 @@ export function parseQueueMsg(raw: unknown): QueueClientMsg | null {
   const o = m as Record<string, unknown>;
   if (o.t === "queue" && typeof o.code === "string" && o.code.length <= 64) return { t: "queue", code: o.code };
   if (o.t === "cancel") return { t: "cancel" };
+  if ((o.t === "accept" || o.t === "decline") && typeof o.offer === "string" && o.offer.length <= 64) return { t: o.t, offer: o.offer };
   return null;
 }
 
@@ -141,6 +168,14 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
       return { t: "resign" };
     case "rematch":
       return { t: "rematch" };
+    case "aim":
+      if (!Number.isInteger(o.seq) || !Number.isInteger(o.coinId) || !isNum(o.angle) || !isNum(o.power)) return null;
+      return { t: "aim", seq: o.seq as number, coinId: o.coinId as number, angle: o.angle, power: o.power };
+    case "aim_end":
+      if (!Number.isInteger(o.seq)) return null;
+      return { t: "aim_end", seq: o.seq as number };
+    case "react":
+      return isReactionId(o.r) ? { t: "react", r: o.r } : null;
     default:
       return null;
   }

@@ -14,4 +14,6 @@ export const ERROR_LOG_KEEP_DAYS = 90;
 export async function maintenance(db: Db, now = Date.now()): Promise<void> {
   await db.prepare("DELETE FROM rate_limits WHERE window_start < ?1").bind(now - RATE_LIMIT_KEEP_MS).run();
   await db.prepare("DELETE FROM error_log WHERE day < ?1").bind(dayOf(now - ERROR_LOG_KEEP_DAYS * DAY)).run();
+  // Finished or expired challenges; kept a couple of days so "declined" can stop repeat challenges for 24 hours.
+  await db.prepare("DELETE FROM challenges WHERE expires_at < ?1").bind(now - 2 * DAY).run();
 }

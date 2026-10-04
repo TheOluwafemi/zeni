@@ -1,5 +1,5 @@
 import { COIN_RADIUS, CUP_RADIUS, MIN_POWER } from "../../shared/constants";
-import { FALL_MS, type Ghost, type LocalGame } from "./local-game";
+import { FALL_MS, type Aim, type Ghost, type LocalGame } from "./local-game";
 import { makeBoardBackground, makeCoinSprite, makeCupSprite, makeShadowSprite, METAL_COUNT } from "./sprites";
 import type { BoardView } from "./view";
 
@@ -61,7 +61,8 @@ export class Renderer {
     for (const g of game.ghosts) this.drawGhost(g, now);
     ctx.globalAlpha = 1;
 
-    if (game.aim) this.drawAim(game);
+    if (game.remoteAim) this.drawAim(game, game.remoteAim, true);
+    if (game.aim) this.drawAim(game, game.aim, false);
   }
 
   /** A coin tipping over the edge: keeps sliding, drops away and fades. */
@@ -90,8 +91,8 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawAim(game: LocalGame): void {
-    const aim = game.aim!;
+  /** `theirs`: the other player's live aim, in their colour with a dashed ring (a shape cue, not just colour). */
+  private drawAim(game: LocalGame, aim: Aim, theirs: boolean): void {
     const c = game.coinPosition(aim.coinId);
     if (!c) return;
     const { ctx } = this.view;
@@ -100,7 +101,7 @@ export class Renderer {
     // Rubber band from the coin to the finger.
     ctx.lineCap = "round";
     ctx.setLineDash([]);
-    ctx.strokeStyle = "rgba(255, 240, 220, 0.22)";
+    ctx.strokeStyle = theirs ? OPPONENT_BAND : "rgba(255, 240, 220, 0.22)";
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(c.x, c.y);
@@ -116,11 +117,13 @@ export class Renderer {
     ctx.stroke();
     if (!live) return;
 
-    const color = powerColor(aim.power);
+    const color = theirs ? OPPONENT_COLOR : powerColor(aim.power);
     ctx.strokeStyle = color;
+    if (theirs) ctx.setLineDash([9, 7]);
     ctx.beginPath();
     ctx.arc(c.x, c.y, ringR, -Math.PI / 2, -Math.PI / 2 + aim.power * Math.PI * 2);
     ctx.stroke();
+    ctx.setLineDash([]);
 
     // Direction: a short dashed line. Deliberately not a full trajectory preview.
     const dx = Math.cos(aim.angle);
@@ -129,7 +132,7 @@ export class Renderer {
     const end = start + 50 + aim.power * 260;
     ctx.setLineDash([14, 10]);
     ctx.lineWidth = 4;
-    ctx.strokeStyle = "rgba(255, 248, 235, 0.85)";
+    ctx.strokeStyle = theirs ? OPPONENT_COLOR : "rgba(255, 248, 235, 0.85)";
     ctx.beginPath();
     ctx.moveTo(c.x + dx * start, c.y + dy * start);
     ctx.lineTo(c.x + dx * end, c.y + dy * end);
@@ -150,6 +153,10 @@ export class Renderer {
     ctx.fill();
   }
 }
+
+/** The other player's aim. Stands in for their shirt colour until avatars arrive. */
+const OPPONENT_COLOR = "#6cc8e0";
+const OPPONENT_BAND = "rgba(108, 200, 224, 0.3)";
 
 function powerColor(p: number): string {
   return `hsl(${45 - 45 * p} 92% ${62 - 10 * p}%)`;

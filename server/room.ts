@@ -6,9 +6,11 @@
 
 import { DurableObject } from "cloudflare:workers";
 import type { Difficulty } from "../shared/constants";
-import { parseClientMsg, type ErrorCode, type ServerMsg } from "../shared/protocol";
+import { AIM_MIN_GAP_MS, parseClientMsg, type ClientMsg, type ErrorCode, type ServerMsg } from "../shared/protocol";
+import { REACT_GAP_MS } from "../shared/reactions";
 import type { Seat } from "../shared/types";
 import { playerForCode } from "./accounts";
+import { challengeStarted } from "./challenges";
 import { recordResult } from "./ratings";
 import { bump, markActive } from "./stats";
 import { logServerError } from "./telemetry";
@@ -32,6 +34,9 @@ const CLOSE_CODES: Partial<Record<ErrorCode, number>> = {
 
 export class Room extends DurableObject<Env> {
   private core: RoomCore | null = null;
+  /** When each seat's last aim update was passed on. In memory only: losing it on hibernation is harmless. */
+  private lastAim: [number, number] = [0, 0];
+  private lastReact: [number, number] = [0, 0];
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -58,10 +63,10 @@ export class Room extends DurableObject<Env> {
 
   // --- Called by the matchmaker ------------------------------------------------
 
-  /** Open a room reserved for two matched players. False if this code is already in use. */
-  async open(code: string, table: Difficulty, reserved: [string, string]): Promise<boolean> {
+  /** Open a room reserved for two players (matched, or a challenge). False if this code is already in use. */
+  async open(code: string, table: Difficulty, reserved: [string, string], kind: "quick" | "challenge" = "quick"): Promise<boolean> {
     if (this.core) return false;
-    this.core = new RoomCore(newRoom(code, table, Date.now(), reserved));
+    this.core = new RoomCore(newRoom(code, table, Date.now(), reserved, kind));
     await this.save();
     await this.reschedule();
     return true;
@@ -93,6 +98,16 @@ export class Room extends DurableObject<Env> {
         return this.act(ws, seat, (core, now) => core.resign(seat, now));
       case "rematch":
         return this.act(ws, seat, (core, now) => core.rematch(seat, now));
+      case "aim":
+      case "aim_end":
+        return this.aim(seat, msg);
+      case "react": {
+        // Too soon after the last one: dropped quietly (the buttons wait this long anyway).
+        const now = Date.now();
+        if (now - this.lastReact[seat] < REACT_GAP_MS || !this.core) return;
+        this.lastReact[seat] = now;
+        return this.deliver(this.core.react(seat, msg.r));
+      }
     }
   }
 
@@ -149,6 +164,14 @@ export class Room extends DurableObject<Env> {
       return;
     }
     await this.afterStep(result, now);
+  }
+
+  /** Pass live aim to the other player. Too-frequent updates are dropped (the last one still gets through on the next). */
+  private aim(seat: Seat, msg: Extract<ClientMsg, { t: "aim" | "aim_end" }>): void {
+    const now = Date.now();
+    if (msg.t === "aim" && now - this.lastAim[seat] < AIM_MIN_GAP_MS) return;
+    this.lastAim[seat] = now;
+    if (this.core) this.deliver(this.core.aim(seat, msg));
   }
 
   /** A socket closed or failed. If it was the seat's last one, start the clock on their return. */
@@ -231,7 +254,10 @@ export class Room extends DurableObject<Env> {
   private async countStarts(out: Out[]): Promise<void> {
     if (!out.some((o) => o.msg.t === "start")) return;
     try {
-      await bump(this.env.DB, this.core?.rec.reserved ? "game_start_quick" : "game_start_friend");
+      const rec = this.core?.rec;
+      const how = !rec?.reserved ? "friend" : rec.kind === "challenge" ? "challenge" : "quick";
+      await bump(this.env.DB, `game_start_${how}`);
+      if (how === "challenge" && rec) await challengeStarted(this.env.DB, rec.code);
     } catch (e) {
       console.error("could not count a game start", e);
     }

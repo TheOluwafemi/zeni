@@ -79,6 +79,11 @@
 
         <div class="card" id="online-card">
           <h2>Play online</h2>
+          <p id="presence" class="presence" aria-live="polite"></p>
+          <div id="challenges" class="challenges" hidden>
+            <h3 class="sub">Challenges</h3>
+            <ul class="challenge-list"></ul>
+          </div>
           <button type="button" class="primary wide" id="quick-match">Quick Match</button>
           <p class="muted small">Play a stranger of a similar rating on the table chosen above. Counts for your rank.</p>
           <button type="button" class="wide" id="online-create">Play a friend: create a room</button>
@@ -88,6 +93,11 @@
             <button type="submit">Join</button>
           </form>
           <p id="online-status" class="status" aria-live="polite"></p>
+          <div id="recent" class="challenges" hidden>
+            <h3 class="sub">Play again</h3>
+            <ul class="challenge-list"></ul>
+          </div>
+          <p id="challenge-status" class="status bad" aria-live="polite"></p>
         </div>
 
         <button type="button" id="open-leaderboard">Leaderboard</button>
@@ -146,6 +156,7 @@
       </section>
 
       <p id="message" aria-live="polite"></p>
+      <div class="reactions" role="group" aria-label="Send a reaction" hidden></div>
     </main>
 
     <!-- Result -->
@@ -156,6 +167,7 @@
         <p id="result-note"></p>
         <p id="result-rating"></p>
         <p id="result-tier"></p>
+        <div class="reactions" role="group" aria-label="Send a reaction" hidden></div>
         <div class="row">
           <button type="button" id="result-home">Home</button>
           <button type="button" class="primary" id="rematch">Rematch</button>
@@ -329,8 +341,27 @@
         <div class="spinner" aria-hidden="true"></div>
         <h3 id="queue-title" class="title">Finding a match</h3>
         <p id="queue-text" class="muted" role="status"></p>
-        <button type="button" class="wide" id="queue-computer" hidden>Play the computer while you wait</button>
+        <button type="button" class="wide" id="queue-computer">Play the computer while you wait</button>
         <button type="button" class="link" id="queue-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Quick Match searching behind a game against the computer -->
+    <div id="queue-pill" class="queue-pill" role="status" hidden>
+      <span class="pulse" aria-hidden="true"></span>
+      <span id="queue-pill-text">Looking for a game</span>
+      <button type="button" id="queue-pill-stop" class="link" aria-label="Stop looking for a game">✕</button>
+    </div>
+
+    <!-- The background search found someone -->
+    <div id="match-offer" class="offer-banner" role="alertdialog" aria-labelledby="offer-title" aria-describedby="offer-who" hidden>
+      <div>
+        <strong id="offer-title">Opponent found</strong>
+        <span id="offer-who" class="muted"></span>
+      </div>
+      <div class="offer-actions">
+        <button type="button" id="offer-skip" class="link">Not now</button>
+        <button type="button" id="offer-join" class="primary">Join</button>
       </div>
     </div>
 
@@ -338,9 +369,9 @@
     <div id="sheet-lobby" class="overlay" hidden>
       <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="lobby-title">
         <h3 id="lobby-title" class="title">Waiting for a friend</h3>
-        <p class="muted">Send them this code or the link. The game starts as soon as they join.</p>
+        <p id="lobby-text" class="muted">Send them this code or the link. The game starts as soon as they join.</p>
         <p id="lobby-code" class="room-code" aria-label="Room code"></p>
-        <div class="row">
+        <div class="row" id="lobby-share-row">
           <button type="button" id="lobby-copy">Copy link</button>
           <button type="button" class="primary" id="lobby-share">Share</button>
         </div>

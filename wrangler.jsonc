@@ -21,13 +21,16 @@
   "durable_objects": {
     "bindings": [
       { "name": "ROOM", "class_name": "Room" },
-      { "name": "MATCHMAKER", "class_name": "Matchmaker" }
+      { "name": "MATCHMAKER", "class_name": "Matchmaker" },
+      { "name": "PRESENCE", "class_name": "Presence" }
     ]
   },
   "exports": {
     "Room": { "type": "durable-object", "storage": "sqlite" },
     // The Quick Match queue, one per table. Its state lives in its sockets, but the class still needs a backend.
-    "Matchmaker": { "type": "durable-object", "storage": "sqlite" }
+    "Matchmaker": { "type": "durable-object", "storage": "sqlite" },
+    // "Who's around": in-memory counts only, nothing stored.
+    "Presence": { "type": "durable-object", "storage": "sqlite" }
   },
   // A daily cleanup of short-lived records (see server/maintenance.ts), at 03:17 UTC.
   "triggers": {

@@ -1,25 +1,26 @@
 // The Quick Match queue. One Durable Object per table ("easy" and "hard"), so players are only paired
 // with someone who wants the same table.
 //
-// The queue is just the set of connected sockets that have asked to queue; each socket remembers its
-// player in its attachment, so the queue survives the object hibernating. When two players are paired,
-// the matchmaker opens a room reserved for them and tells both which room to join.
+// The rules live in QueueCore (pure, tested). This object only stores the queue and carries out what
+// the core decides. The queue is the set of connected sockets that have asked to queue: each socket
+// remembers its place in line and any pending offer in its attachment, so the queue survives the object
+// hibernating.
 
 import { DurableObject } from "cloudflare:workers";
 import type { Difficulty } from "../shared/constants";
 import { parseQueueMsg, type ErrorCode, type QueueServerMsg } from "../shared/protocol";
 import { newRoomCode } from "../shared/room-code";
 import { playerForCode } from "./accounts";
-import { nextRetry, pickPairs, type Waiting } from "./matchmaking";
+import { QueueCore, type QAction, type QEntry } from "./queue-core";
 import { markActive } from "./stats";
 import { logServerError } from "./telemetry";
 
 interface Attachment {
   table: Difficulty;
-  /** Set once the player has asked to queue. */
-  queued?: { playerId: string; rating: number; since: number };
-  /** Set the moment a pairing is decided, so a second pass can't pair the same player again. */
-  matching?: boolean;
+  /** Socket id. */
+  sid: string;
+  /** Set once the player has asked to queue: their place in line and any pending offer. */
+  entry?: QEntry;
 }
 
 const CLOSE: Partial<Record<ErrorCode, number>> = { unauthorized: 4401, already_queued: 4409, bad_message: 4400 };
@@ -27,11 +28,10 @@ const CLOSE: Partial<Record<ErrorCode, number>> = { unauthorized: 4401, already_
 export class Matchmaker extends DurableObject<Env> {
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
-    const table: Difficulty = request.headers.get("X-Table") === "hard" ? "hard" : "easy";
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ table } satisfies Attachment);
+    server.serializeAttachment({ table: this.table(), sid: crypto.randomUUID() } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -42,26 +42,25 @@ export class Matchmaker extends DurableObject<Env> {
     if (!att) return this.reject(ws, "bad_message");
 
     if (msg.t === "cancel") {
-      ws.close(1000, "cancelled");
+      const core = this.load();
+      await this.apply(core, [...core.gone(att.sid), { kind: "close", sid: att.sid, code: 1000, reason: "cancelled" }]);
       return;
     }
-    if (att.queued) return this.reject(ws, "bad_message"); // already in the queue
+    if (msg.t === "accept" || msg.t === "decline") {
+      const core = this.load();
+      await this.apply(core, msg.t === "accept" ? core.accept(att.sid, msg.offer) : core.decline(att.sid, msg.offer));
+      return;
+    }
+    if (att.entry) return this.reject(ws, "bad_message"); // already in the queue
 
     const player = await playerForCode(this.env.DB, msg.code);
     if (!player) return this.reject(ws, "unauthorized");
-
-    // One place in the queue per player: a second tab replaces the first.
-    for (const other of this.sockets()) {
-      if (other.ws !== ws && other.att.queued?.playerId === player.id) {
-        this.send(other.ws, { t: "error", error: "already_queued" });
-        other.ws.close(CLOSE.already_queued, "already_queued");
-      }
-    }
-
     markActive(this.env.DB, player.id).catch(() => {}); // anonymous daily player count; never blocks queueing
-    ws.serializeAttachment({ ...att, queued: { playerId: player.id, rating: player.rating, since: Date.now() } } satisfies Attachment);
-    this.send(ws, { t: "queued", waiting: this.waiting().length });
-    await this.match();
+
+    // Load after the await, so we see anything that changed meanwhile.
+    const core = this.load();
+    const actions = core.join({ sid: att.sid, playerId: player.id, nickname: player.nickname, rating: player.rating, since: Date.now() });
+    await this.apply(core, [...actions, ...core.pair(Date.now())]);
   }
 
   override async webSocketClose(ws: WebSocket, code: number): Promise<void> {
@@ -70,57 +69,81 @@ export class Matchmaker extends DurableObject<Env> {
     } catch {
       // Already closed.
     }
-    await this.reschedule();
+    const att = ws.deserializeAttachment() as Attachment | null;
+    const core = this.load();
+    await this.apply(core, att ? core.gone(att.sid) : []);
   }
 
-  override async webSocketError(): Promise<void> {
-    await this.reschedule();
+  override async webSocketError(ws: WebSocket): Promise<void> {
+    await this.webSocketClose(ws, 1011);
   }
 
   override async alarm(): Promise<void> {
-    await this.match();
+    const core = this.load();
+    const now = Date.now();
+    const expired = core.expire(now);
+    await this.apply(core, [...expired, ...core.pair(now)]);
   }
 
-  // --- Matching ---------------------------------------------------------------
+  // --- Carrying out the core's decisions -------------------------------------
 
-  private async match(): Promise<void> {
-    const waiting = this.waiting();
-    const pairs = pickPairs(
-      waiting.map((w) => ({ id: w.playerId, rating: w.rating, since: w.since })),
-      Date.now(),
-    );
-
-    // Claim every paired socket before the first await, so an overlapping pass can't pair them again.
-    const claimed = pairs.map(([a, b]) => {
-      const sa = waiting.find((w) => w.playerId === a.id)!;
-      const sb = waiting.find((w) => w.playerId === b.id)!;
-      for (const s of [sa, sb]) s.ws.serializeAttachment({ ...s.att, matching: true } satisfies Attachment);
-      return [sa, sb] as const;
-    });
-
-    await Promise.all(claimed.map(([a, b]) => this.pair(a, b)));
-    await this.reschedule();
+  /** The queue as stored in the open sockets. */
+  private load(): QueueCore {
+    const entries = new Map<string, QEntry>();
+    for (const { att } of this.sockets()) if (att.entry) entries.set(att.sid, att.entry);
+    return new QueueCore(entries, this.table());
   }
 
-  private async pair(a: Waiting_, b: Waiting_): Promise<void> {
-    const table = a.att.table;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const room = newRoomCode();
+  /** Save the queue back to the sockets, then send, close and open rooms as the core asked. */
+  private async apply(core: QueueCore, decided: QAction[]): Promise<void> {
+    // A socket can drop while the queue sleeps, leaving its partner's offer pointing at nobody.
+    const actions = [...decided, ...core.dropOrphans()];
+    const sockets = new Map(this.ctx.getWebSockets().map((ws) => [(ws.deserializeAttachment() as Attachment | null)?.sid, ws]));
+
+    // Persist first: every later step (and any overlapping event) must see the queue as decided.
+    for (const [sid, ws] of sockets) {
+      if (!sid) continue;
+      const entry = core.entries.get(sid);
       try {
-        const opened = await this.env.ROOM.getByName(room).open(room, table, [a.playerId, b.playerId]);
-        if (!opened) continue; // that code is taken: try another
-        for (const s of [a, b]) {
-          this.send(s.ws, { t: "matched", room, table });
-          s.ws.close(1000, "matched");
-        }
-        return;
+        ws.serializeAttachment({ table: this.table(), sid, ...(entry ? { entry } : {}) } satisfies Attachment);
+      } catch {
+        // Closed sockets can't store anything; they're out of the queue anyway.
+      }
+    }
+
+    const opens: Extract<QAction, { kind: "open" }>[] = [];
+    for (const a of actions) {
+      const ws = a.kind === "open" ? undefined : sockets.get(a.sid);
+      if (a.kind === "send" && ws) this.send(ws, a.msg);
+      else if (a.kind === "close" && ws) this.close(ws, a.code, a.reason);
+      else if (a.kind === "open") opens.push(a);
+    }
+
+    await this.reschedule(core);
+    await Promise.all(opens.map((o) => this.openRoom(o)));
+  }
+
+  /** Both players accepted: open a room reserved for them, then send them to it. */
+  private async openRoom(o: Extract<QAction, { kind: "open" }>): Promise<void> {
+    let room: string | null = null;
+    for (let attempt = 0; attempt < 3 && !room; attempt++) {
+      const code = newRoomCode();
+      try {
+        if (await this.env.ROOM.getByName(code).open(code, this.table(), o.players)) room = code;
+        // Otherwise that code is taken: try another.
       } catch (e) {
         console.error("could not open a room", e);
         await logServerError(this.env.DB, "matchmaker", e);
       }
     }
-    // Couldn't open a room: put both back in the queue, keeping their place.
-    for (const s of [a, b]) s.ws.serializeAttachment({ table: s.att.table, queued: s.att.queued } satisfies Attachment);
+    // Reload: things may have changed while the room was opening (someone may even have left).
+    const core = this.load();
+    await this.apply(core, room ? core.opened(o.offer, room) : core.openFailed(o.offer));
+  }
+
+  private table(): Difficulty {
+    // This object is named after its table ("easy" or "hard"), which survives hibernation.
+    return this.ctx.id.name === "hard" ? "hard" : "easy";
   }
 
   /** Every open socket and what it remembers. */
@@ -128,20 +151,18 @@ export class Matchmaker extends DurableObject<Env> {
     return this.ctx
       .getWebSockets()
       .filter((ws) => ws.readyState === WebSocket.READY_STATE_OPEN)
-      .map((ws) => ({ ws, att: (ws.deserializeAttachment() ?? { table: "easy" }) as Attachment }));
+      .flatMap((ws) => {
+        const att = ws.deserializeAttachment() as Attachment | null;
+        return att?.sid ? [{ ws, att }] : [];
+      });
   }
 
-  /** Players in line who haven't been paired yet. */
-  private waiting(): Waiting_[] {
-    return this.sockets()
-      .filter((s) => s.att.queued && !s.att.matching)
-      .map((s) => ({ ...s, playerId: s.att.queued!.playerId, rating: s.att.queued!.rating, since: s.att.queued!.since }));
-  }
-
-  private async reschedule(): Promise<void> {
-    const now = Date.now();
-    const queue: Waiting[] = this.waiting().map((w) => ({ id: w.playerId, rating: w.rating, since: w.since }));
-    const at = nextRetry(queue, now);
+  private async reschedule(core: QueueCore): Promise<void> {
+    // Tell the presence counter how many are looking for a game here. Best effort: never blocks the queue.
+    this.env.PRESENCE.getByName("global")
+      .setSearching(this.table(), core.entries.size)
+      .catch(() => {});
+    const at = core.nextWake(Date.now());
     if (at === null) await this.ctx.storage.deleteAlarm();
     else await this.ctx.storage.setAlarm(at);
   }
@@ -154,20 +175,16 @@ export class Matchmaker extends DurableObject<Env> {
     }
   }
 
-  private reject(ws: WebSocket, error: ErrorCode): void {
-    this.send(ws, { t: "error", error });
+  private close(ws: WebSocket, code: number, reason: string): void {
     try {
-      ws.close(CLOSE[error] ?? 4400, error);
+      ws.close(code, reason);
     } catch {
       // Already closed.
     }
   }
-}
 
-interface Waiting_ {
-  ws: WebSocket;
-  att: Attachment;
-  playerId: string;
-  rating: number;
-  since: number;
+  private reject(ws: WebSocket, error: ErrorCode): void {
+    this.send(ws, { t: "error", error });
+    this.close(ws, CLOSE[error] ?? 4400, error);
+  }
 }

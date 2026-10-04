@@ -1,12 +1,14 @@
 import { PROTOCOL_VERSION } from "../shared/constants";
-import { normalizeRoomCode } from "../shared/room-code";
+import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
 import { handleAccounts } from "./accounts";
+import { handleChallenges } from "./challenges";
 import { handleLeaderboard } from "./leaderboard";
 import { maintenance } from "./maintenance";
 import { handleTelemetry, logServerError } from "./telemetry";
 
 // The Durable Object classes must be exported from the Worker's entry point.
 export { Matchmaker } from "./matchmaker";
+export { Presence } from "./presence";
 export { Room } from "./room";
 
 const ROOM_SOCKET = /^\/ws\/room\/([^/]+)$/;
@@ -68,8 +70,24 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     return fresh ?? Response.json({ error: "not_found" }, { status: 404 });
   }
 
+  // "3 online · 1 looking for a game". Anonymous: the body carries a random id made fresh per tab.
+  if (url.pathname === "/api/presence" && request.method === "POST") {
+    const body = (await request.json().catch(() => null)) as { session?: unknown } | null;
+    const info = await env.PRESENCE.getByName("global").ping(body?.session);
+    return Response.json(info, { headers: { "cache-control": "no-store" } });
+  }
+
   const telemetry = await handleTelemetry(request, url, env.DB);
   if (telemetry) return telemetry;
+
+  const challenges = await handleChallenges(
+    request,
+    url,
+    env.DB,
+    (code, table, players) => env.ROOM.getByName(code).open(code, table, players, "challenge"),
+    newRoomCode,
+  );
+  if (challenges) return challenges;
 
   const accounts = await handleAccounts(request, url, env.DB, (p) => ctx.waitUntil(p));
   if (accounts) return accounts;

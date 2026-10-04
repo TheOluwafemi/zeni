@@ -19,6 +19,7 @@ import {
   type Players,
   type ServerMsg,
 } from "../shared/protocol";
+import type { ReactionId } from "../shared/reactions";
 import { randomSeed } from "../shared/rng";
 import { legalShot, newGame, other, resolveShot } from "../shared/rules";
 import type { GameState, Seat } from "../shared/types";
@@ -49,6 +50,8 @@ export interface RoomRec {
   lastActivity: number;
   /** For Quick Match rooms: the two players it was made for. Nobody else may take a seat. */
   reserved?: [string, string] | null;
+  /** How a reserved room came about. Missing on rooms saved before challenges existed (they were Quick Match). */
+  kind?: "quick" | "challenge";
   /** When the current (or last) game began, for match length statistics. */
   gameStartedAt?: number | null;
 }
@@ -80,7 +83,13 @@ export interface Joiner {
   rating: number;
 }
 
-export function newRoom(code: string, table: Difficulty, now: number, reserved: [string, string] | null = null): RoomRec {
+export function newRoom(
+  code: string,
+  table: Difficulty,
+  now: number,
+  reserved: [string, string] | null = null,
+  kind?: "quick" | "challenge",
+): RoomRec {
   return {
     code,
     table,
@@ -93,6 +102,7 @@ export function newRoom(code: string, table: Difficulty, now: number, reserved: 
     rematch: [false, false],
     lastActivity: now,
     reserved,
+    ...(kind ? { kind } : {}),
   };
 }
 
@@ -225,6 +235,30 @@ export class RoomCore {
       msg: { t: "shot", seq: state.shots, by: seat, shot, state: next, outcome, animMs, deadlineIn: this.deadlineIn(now) ?? 0 },
     });
     return { out, finished, expired: false };
+  }
+
+  /**
+   * Live aim, passed on to the other player. Nothing changes and nothing is saved. Anything out of
+   * place (not their turn, an old shot number, a coin they can't shoot) is dropped quietly: an aim
+   * arriving just after a shot is normal, not an error worth resending the room for.
+   */
+  aim(seat: Seat, msg: Extract<ClientMsg, { t: "aim" | "aim_end" }>): Out[] {
+    const state = this.rec.state;
+    if (this.rec.status !== "playing" || !state || state.turn !== seat || msg.seq !== state.shots) return [];
+    const to = other(seat);
+    if (msg.t === "aim_end") return [{ to, msg: { t: "aim_end", by: seat } }];
+    const power = Math.min(1, Math.max(0, msg.power));
+    // Aiming starts below shooting power, so check the coin with a power any real shot could have.
+    if (!legalShot(state, seat, { coinId: msg.coinId, angle: msg.angle, power: 1 })) return [];
+    const round = (x: number) => Math.round(x * 1000) / 1000; // plenty for drawing, and keeps messages small
+    return [{ to, msg: { t: "aim", by: seat, coinId: msg.coinId, angle: round(msg.angle), power: round(power) } }];
+  }
+
+  /** A reaction for the other player: during a game, or after it while both are still looking at the result. */
+  react(seat: Seat, r: ReactionId): Out[] {
+    const { rec } = this;
+    if (rec.status === "waiting" || !rec.seats[0] || !rec.seats[1]) return [];
+    return [{ to: other(seat), msg: { t: "react", by: seat, r } }];
   }
 
   resign(seat: Seat, now: number): Step | Failure {

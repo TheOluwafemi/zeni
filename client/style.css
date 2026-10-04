@@ -797,6 +797,29 @@ button.ghost:hover {
   text-indent: 0.18em;
 }
 
+.presence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 12px;
+  color: var(--fg);
+  font-size: 0.92rem;
+}
+
+.presence:empty {
+  display: none;
+}
+
+.presence::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: #7fd38a;
+  box-shadow: 0 0 0 3px rgba(127, 211, 138, 0.18);
+}
+
 #online-card .wide {
   margin-bottom: 8px;
 }
@@ -1065,4 +1088,252 @@ button.danger:hover {
   .pip.pop {
     animation: none;
   }
+}
+
+/* --- Quick Match in the background ------------------------------------------ */
+
+.queue-pill {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.queue-pill .pulse {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.queue-pill button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  color: var(--muted);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.offer-banner {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  width: min(440px, calc(100% - 32px));
+  padding: 12px 14px;
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  background: var(--panel-2);
+  box-shadow: 0 0 0 1px var(--gold), 0 10px 30px rgba(0, 0, 0, 0.45);
+  transform: translateX(-50%);
+  animation: drop-in 0.25s ease-out;
+}
+
+.offer-banner > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.offer-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+#offer-join {
+  min-width: 92px; /* the countdown doesn't make the button jump */
+}
+
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-pill .pulse,
+  .offer-banner {
+    animation: none;
+  }
+}
+
+/* --- Reactions ---------------------------------------------------------------- */
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.reactions .chip {
+  min-height: 34px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.reactions .chip:disabled {
+  opacity: 0.45;
+}
+
+.bubble {
+  position: fixed;
+  z-index: 30;
+  max-width: calc(100% - 24px);
+  padding: 7px 13px;
+  border-radius: 14px;
+  background: var(--fg);
+  color: var(--gold-ink);
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  animation: bubble-in 0.2s ease-out, bubble-out 0.3s ease-in 2.3s forwards;
+}
+
+/* The other player's bubbles use their colour (the same as their live aim). */
+.bubble.theirs {
+  background: #6cc8e0;
+  color: #0f2a33;
+}
+
+.bubble::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  border: 7px solid transparent;
+}
+
+.bubble.up::after {
+  top: 100%;
+  border-top-color: var(--bubble-tail, var(--fg));
+}
+
+.bubble.down::after {
+  bottom: 100%;
+  border-bottom-color: var(--bubble-tail, var(--fg));
+}
+
+.bubble.theirs {
+  --bubble-tail: #6cc8e0;
+}
+
+/* Grows in rather than fading in, so a paused animation can't leave it invisible. */
+@keyframes bubble-in {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes bubble-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    animation: bubble-out 0.3s ease-in 2.3s forwards;
+  }
+}
+
+/* --- Challenges and recent opponents ------------------------------------------ */
+
+.challenges {
+  margin: 4px 0 8px;
+}
+
+.challenges .sub {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.challenge-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.challenge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.challenge-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.challenge-info > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.challenge-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.challenge-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.challenge-actions button,
+.board-row .challenge-btn {
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+}
+
+.board-row .challenge-btn {
+  flex: none;
+}
+
+.board-row .challenge-btn.spacer {
+  visibility: hidden;
 }

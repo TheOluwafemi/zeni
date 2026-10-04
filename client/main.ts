@@ -10,7 +10,9 @@ import { start, startOnline, setOnExit, type Opponent } from "./game-screen";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
 import { setupInstall } from "./install";
 import { openLeaderboard } from "./leaderboard";
-import { openQuickMatch } from "./quick-match";
+import { refresh as refreshChallenges, startChallenges } from "./challenges";
+import { cancelQuickMatch, openQuickMatch } from "./quick-match";
+import { describePresence, latestPresence, pingSoon, startPresence } from "./presence";
 import { makeCoinSprite } from "./game/sprites";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -45,7 +47,10 @@ function show(screen: "home" | "game", detail = ""): void {
   setScreen(screen === "home" ? "home" : `game:${detail || "local"}`);
   home.hidden = screen !== "home";
   gameScreen.hidden = screen !== "game";
-  if (screen === "home") void refreshPlayer(); // ratings change after online games
+  if (screen === "home") {
+    void refreshPlayer(); // ratings change after online games
+    void refreshChallenges();
+  }
 }
 
 function play(opponent: Opponent): void {
@@ -82,7 +87,16 @@ function bindSegment(group: string, current: string, onPick: (v: string) => void
 }
 
 bindSegment("level", level, (v) => save("zeni.level", (level = v as AiLevel)));
-bindSegment("table", table, (v) => save("zeni.table", (table = v as Difficulty)));
+bindSegment("table", table, (v) => {
+  save("zeni.table", (table = v as Difficulty));
+  renderPresence();
+});
+
+function renderPresence(): void {
+  const info = latestPresence();
+  $("#presence").textContent = info ? describePresence(info, table) : "";
+}
+startPresence(renderPresence);
 
 $("#play-computer").addEventListener("click", () => play(level));
 $("#play-friend").addEventListener("click", () => play("friend"));
@@ -127,6 +141,7 @@ window.addEventListener(PLAYER_READY, () => {
 });
 
 function joinRoom(code: string): void {
+  cancelQuickMatch(); // going into a friend's room ends any search
   sound.unlock();
   show("game", "online");
   startOnline(code, null);
@@ -135,6 +150,7 @@ function joinRoom(code: string): void {
 $("#quick-match").addEventListener("click", () =>
   needPlayer(() => {
     sound.unlock();
+    pingSoon();
     openQuickMatch(table, {
       matched: (room) => {
         show("game", "online");
@@ -145,10 +161,22 @@ $("#quick-match").addEventListener("click", () =>
   }),
 );
 
-$("#open-leaderboard").addEventListener("click", openLeaderboard);
+$("#open-leaderboard").addEventListener("click", () => openLeaderboard(table));
+
+startChallenges({
+  enter: (room, opponent) => {
+    cancelQuickMatch(); // a challenge game replaces any search
+    sound.unlock();
+    show("game", "online");
+    startOnline(room, null, { challenge: opponent });
+  },
+  homeVisible: () => !home.hidden,
+  table: () => table,
+});
 
 $("#online-create").addEventListener("click", () =>
   needPlayer(() => {
+    cancelQuickMatch();
     sound.unlock();
     show("game", "online");
     startOnline(newRoomCode(), table);
