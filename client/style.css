@@ -1,12 +1,12 @@
 :root {
-  --bg: #1c120b;
-  --panel: #2a1b11;
-  --panel-2: #332216;
-  --fg: #f3e6d3;
-  --muted: #b39a7e;
-  --gold: #e8b85a;
-  --gold-ink: #24160c;
-  --line: rgba(243, 230, 211, 0.12);
+  --bg: #14100c;
+  --panel: #1d1711;
+  --panel-2: #261e16;
+  --fg: #f6ecdc;
+  --muted: #b8a58c;
+  --gold: #f0bb55;
+  --gold-ink: #1f1407;
+  --line: rgba(255, 236, 210, 0.12);
   --title: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Times New Roman", serif;
   color-scheme: dark;
 }
@@ -144,255 +144,6 @@ button.ghost:hover {
   background: var(--panel-2);
   color: var(--fg);
   box-shadow: inset 0 0 0 1px var(--gold);
-}
-
-/* Home: a slim top bar, two big ways to play, and everything else one tap away. */
-
-/* Home uses the whole window: one column on phones, the play tiles side by side from 560px, and a
-   main area with a side column from 900px. Capped at a comfortable width on very large screens. */
-#home {
-  gap: 0;
-  max-width: 1200px;
-  overflow-y: auto;
-}
-
-.home-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px 0 18px;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.logo h1 {
-  margin: 0;
-  font-family: var(--title);
-  font-size: 1.7rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-}
-
-.brand-coin {
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
-  animation: settle 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.home-top-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.icon-btn {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  min-height: 40px;
-  padding: 0;
-  border-radius: 50%;
-  color: var(--muted);
-}
-
-.pill {
-  min-height: 40px;
-  padding: 0 16px;
-  border-radius: 999px;
-  font-size: 0.9rem;
-}
-
-.player-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 220px;
-  padding: 0 14px 0 6px;
-}
-
-.pill-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.15;
-  text-align: left;
-}
-
-.pill-text strong,
-.pill-text span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#player-rating {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 500;
-}
-
-.home-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-bottom: 8px;
-}
-
-#player-climb {
-  margin-top: -6px;
-}
-
-.play-tiles {
-  display: grid;
-  gap: 12px;
-}
-
-.tile {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: var(--panel);
-  text-align: left;
-}
-
-.tile-kicker {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/* Quick Match: the main way to play, in gold. */
-.tile-online {
-  min-height: 132px;
-  justify-content: flex-end;
-  border: none;
-  background: radial-gradient(120% 140% at 100% 0%, #f6d48a 0%, #e8b85a 45%, #c98d3a 100%);
-  color: var(--gold-ink);
-  box-shadow: 0 10px 30px rgba(232, 184, 90, 0.18);
-}
-
-.tile-online .tile-kicker {
-  color: rgba(36, 22, 12, 0.7);
-}
-
-.tile-title {
-  font-family: var(--title);
-  font-size: 1.9rem;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-.tile-sub {
-  color: rgba(36, 22, 12, 0.75);
-  font-size: 0.88rem;
-  font-weight: 500;
-}
-
-.tile-online:hover {
-  filter: brightness(1.04);
-}
-
-.tile-computer .seg {
-  margin: 0;
-}
-
-.tile-computer .seg.opponents button {
-  min-height: 86px;
-}
-
-.seg.opponents .face svg {
-  width: 44px;
-  height: 44px;
-}
-
-#play-computer {
-  width: 100%;
-}
-
-/* "Easy table · Single game · Kitchen ›" */
-.settings-line {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 36px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.88rem;
-  font-weight: 500;
-}
-
-.settings-line:hover {
-  color: var(--fg);
-}
-
-.daily-banner {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 68px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: linear-gradient(90deg, rgba(43, 179, 163, 0.16), rgba(43, 179, 163, 0.04));
-  border-color: rgba(43, 179, 163, 0.35);
-  text-align: left;
-}
-
-.daily-coin {
-  font-size: 1.6rem;
-}
-
-.daily-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
-#daily-text {
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 500;
-}
-
-.daily-cta {
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: #2bb3a3;
-  color: #0e2a26;
-  font-size: 0.85rem;
-}
-
-.quick-links {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.quick-links button {
-  min-height: 48px;
-  padding: 0 8px;
-  border-radius: 14px;
-  font-size: 0.85rem;
-}
-
-/* Wider screens: the two ways to play side by side. */
-@media (min-width: 560px) {
-  .play-tiles {
-    grid-template-columns: 1fr 1.25fr;
-  }
 }
 
 .hint {
@@ -1541,15 +1292,386 @@ button.danger:hover {
   font-weight: 500;
 }
 
-.home-top .icon-btn {
-  height: 40px;
-  min-height: 0;
-  flex: none;
+.seg.opponents strong {
+  font-size: 0.95rem;
+  white-space: nowrap;
 }
 
-.home-top .pill {
-  min-height: 0;
-  height: 40px;
+
+/* =============================================================================
+   v3 look: calmer, flatter, rounder. One gold accent; big, clear ways to play.
+   ============================================================================= */
+
+button {
+  border-radius: 14px;
+  transition: filter 0.15s, border-color 0.15s, background 0.15s;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+button.primary,
+button.wide {
+  min-height: 52px;
+  border-radius: 26px;
+}
+
+button.primary {
+  font-weight: 700;
+}
+
+.card {
+  border-radius: 24px;
+}
+
+.seg {
+  border-radius: 16px;
+}
+
+.seg button {
+  border-radius: 12px;
+}
+
+.seg button.current {
+  border-color: transparent;
+  background: var(--gold);
+  color: var(--gold-ink);
+  box-shadow: none;
+}
+
+/* Sheets and dialogs */
+
+.overlay {
+  background: rgba(8, 5, 3, 0.74);
+}
+
+.dialog {
+  width: min(472px, 100%);
+  padding: 28px;
+  border-radius: 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.dialog .title {
+  margin: 0 0 14px;
+  font-family: var(--title);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.dialog .wide {
+  width: 100%;
+}
+
+.dialog .field {
+  min-height: 52px;
+  border-radius: 16px;
+}
+
+.dialog .label {
+  display: block;
+  margin: 18px 0 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dialog .seg {
+  margin-bottom: 4px;
+}
+
+.board-row {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--panel-2);
+}
+
+.board-row.me {
+  background: var(--gold);
+  color: var(--gold-ink);
+}
+
+.board-row.me .rank {
+  color: var(--gold-ink);
+}
+
+.board-row.pinned {
+  border: 0;
+}
+
+.board-row:nth-child(-n + 3) .rank {
+  color: var(--gold);
+}
+
+/* Home: a slim top bar, a hero line, two big ways to play, and everything else one tap away.
+   One column on phones; a main area with a side column from 900px. */
+
+#home {
+  gap: 0;
+  max-width: 1200px;
+  overflow-y: auto;
+}
+
+.home-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0 20px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo h1 {
+  margin: 0;
+  font-family: var(--title);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.brand-coin {
+  animation: settle 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.home-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 0;
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--fg);
+}
+
+.pill {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 0.92rem;
+}
+
+.player-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 240px;
+  padding: 0 16px 0 6px;
+}
+
+.pill-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.pill-text strong,
+.pill-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#player-rating {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.home-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 8px;
+}
+
+.home-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.home-hero h2 {
+  margin: 0 0 6px;
+  font-family: var(--title);
+  font-size: clamp(1.7rem, 5vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.home-hero p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.play-tiles {
+  display: grid;
+  gap: 14px;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 190px;
+  padding: 24px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  text-align: left;
+}
+
+.tile-kicker {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tile-title {
+  font-family: var(--title);
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* Quick Match: the main way to play, in flat gold with a big coin peeking out. */
+.tile-online {
+  justify-content: flex-start;
+  border: 0;
+  background: var(--gold);
+  color: var(--gold-ink);
+}
+
+.tile-online .tile-kicker {
+  color: rgba(31, 20, 7, 0.75);
+}
+
+.tile-online .tile-title {
+  font-size: 2.3rem;
+}
+
+.tile-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.live-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1f6b4f;
+}
+
+.tile-coin {
+  position: absolute;
+  right: -48px;
+  bottom: -56px;
+  width: 230px;
+  height: 230px;
+  pointer-events: none;
+}
+
+.tile-cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 10px;
+  margin-top: auto;
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 24px;
+  background: var(--gold-ink);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.tile-cta svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tile-computer .seg {
+  margin: 8px 0 0;
+}
+
+.tile-computer #play-computer {
+  margin-top: auto;
+  background: var(--panel-2);
+  border-color: rgba(255, 236, 210, 0.2);
+  color: var(--fg);
+}
+
+/* The computer's characters, as cards. */
+.seg.opponents {
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+}
+
+.seg.opponents button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 108px;
+  padding: 12px 4px;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background: var(--bg);
+  line-height: 1.15;
+}
+
+.seg.opponents button.current {
+  border-color: var(--gold);
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.seg.opponents .face svg {
+  display: block;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+}
+
+.seg.opponents .who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .seg.opponents strong {
@@ -1557,25 +1679,163 @@ button.danger:hover {
   white-space: nowrap;
 }
 
-/* Lighter rows on Home for challenges and Play again. */
-.home-body .challenge-row {
-  padding: 6px 8px 6px 12px;
+.seg.opponents small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+/* "Easy table · Single game · Kitchen   Change ›" */
+.settings-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: var(--panel);
+  text-align: left;
+}
+
+.settings-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
   border-radius: 12px;
+  background: var(--panel-2);
+  color: var(--gold);
 }
 
-.home-body .challenge-actions button {
-  min-height: 32px;
+.settings-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
-/* No empty gaps on Home where a message would go. */
-.home-body .status:empty {
-  display: none;
+#settings-summary {
+  flex: 1;
+  min-width: 0;
 }
 
+.settings-change {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+/* More ways to play: icon tiles. */
+.quick-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quick-links button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 80px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--panel);
+  text-align: left;
+}
+
+.ql-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--panel-2);
+  color: var(--gold);
+}
+
+.ql-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ql-text span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.ql-cta {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--gold-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* The side column: your climb, challenges, play again. */
 .home-side {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+}
+
+.climb,
+.home-side .challenges {
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--panel);
+}
+
+.climb {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.climb-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--bg);
+}
+
+.climb-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--gold);
+}
+
+.home-side .challenges .sub {
+  margin: 0 0 12px;
+  color: var(--fg);
+  font-size: 1rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.home-side .challenge-row {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.home-side .challenge-actions button {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 18px;
+}
+
+.home-side .status:empty {
+  display: none;
 }
 
 @media (min-width: 900px) {
@@ -1590,40 +1850,23 @@ button.danger:hover {
 
   .home-body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
     grid-template-areas:
-      "climb side"
-      "tiles side"
-      "settings side"
-      "links side"
+      "main side"
       "install side"
       "hint side"
       "footer footer";
-    grid-template-rows: auto auto auto auto auto 1fr auto;
+    grid-template-rows: auto auto 1fr auto;
     gap: 16px 28px;
     align-items: start;
   }
 
-  #player-climb {
-    grid-area: climb;
-    margin-top: 0;
-  }
-
-  .play-tiles {
-    grid-area: tiles;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .settings-line {
-    grid-area: settings;
+  .home-main {
+    grid-area: main;
   }
 
   .home-side {
     grid-area: side;
-  }
-
-  .quick-links {
-    grid-area: links;
   }
 
   #install {
@@ -1639,20 +1882,143 @@ button.danger:hover {
     padding-top: 24px;
   }
 
-  /* More room: bigger tiles. */
+  .play-tiles {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .tile {
-    padding: 24px;
+    min-height: 270px;
+    padding: 28px;
   }
 
-  .tile-online {
-    min-height: 280px;
-  }
-
-  .tile-title {
+  .tile-online .tile-title {
     font-size: 2.6rem;
   }
+}
 
-  .tile-computer {
+@media (max-width: 599px) {
+  .quick-links button {
+    flex-direction: column;
+    align-items: flex-start;
     justify-content: space-between;
+    min-height: 104px;
+  }
+
+  .ql-cta {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+
+  .quick-links button {
+    position: relative;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Gameplay chrome: the bars and buttons around the table. The table and the
+   game itself are unchanged.
+   ----------------------------------------------------------------------------- */
+
+.topbar {
+  gap: 10px;
+  min-height: 44px;
+}
+
+.topbar button {
+  min-height: 44px;
+  padding: 0 18px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  color: var(--fg);
+}
+
+#game-label {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.player {
+  min-height: 64px;
+  padding: 8px 18px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.player.active {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: var(--gold-ink);
+  box-shadow: none;
+}
+
+.player.active .turn-dot {
+  background: var(--gold-ink);
+}
+
+.player.active .rating-chip {
+  color: inherit;
+}
+
+.score {
+  font-size: 1.9rem;
+}
+
+#message {
+  min-height: 0;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--panel-2);
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+#message:empty {
+  display: none;
+}
+
+.view-toggle {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 22px;
+  background: rgba(20, 16, 12, 0.86);
+  color: var(--fg);
+  font-size: 0.85rem;
+  opacity: 1;
+}
+
+.reactions .chip {
+  min-height: 44px;
+  border-radius: 22px;
+  background: var(--panel);
+}
+
+.tile-online > :not(.tile-coin) {
+  position: relative;
+  z-index: 1;
+}
+
+.tile-online .tile-sub {
+  max-width: 62%;
+}
+
+.tile-coin {
+  z-index: 0;
+}
+
+@media (max-width: 599px) {
+  .tile-coin {
+    right: -60px;
+    bottom: -64px;
+    width: 180px;
+    height: 180px;
   }
 }

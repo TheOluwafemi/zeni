@@ -50,45 +50,69 @@
       </header>
 
       <div class="home-body">
-        <!-- Your climb to the next tier, when you've played online -->
-        <div class="climb" id="player-climb" hidden>
-          <div class="climb-bar" role="progressbar" aria-label="Progress to the next tier" aria-valuemin="0" aria-valuemax="100"><span id="climb-fill"></span></div>
-          <span id="climb-note" class="muted small"></span>
-        </div>
+        <div class="home-main">
+          <div class="home-hero">
+            <h2>Flick. Hit one. Keep it.</h2>
+            <p>Pick a way to play. Everything else is one tap away.</p>
+          </div>
 
-        <div class="play-tiles">
-          <button type="button" class="tile tile-online" id="quick-match">
-            <span class="tile-kicker">Online</span>
-            <strong class="tile-title">Quick Match</strong>
-            <span class="tile-sub" id="presence" aria-live="polite"></span>
+          <div class="play-tiles">
+            <button type="button" class="tile tile-online" id="quick-match">
+              <span class="tile-kicker">Online · Ranked</span>
+              <strong class="tile-title">Quick Match</strong>
+              <span class="tile-sub"><span class="live-dot" aria-hidden="true"></span><span id="presence" aria-live="polite"></span></span>
+              <svg class="tile-coin" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="96" fill="#d99a2f"/><circle cx="100" cy="100" r="80" fill="none" stroke="#b9822a" stroke-width="6"/><rect x="66" y="66" width="68" height="68" rx="6" fill="#f0bb55"/></svg>
+              <span class="tile-cta">Find a match <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+            </button>
+
+            <div class="tile tile-computer">
+              <span class="tile-kicker">Solo</span>
+              <strong class="tile-title">Play the computer</strong>
+              <div class="seg opponents" role="radiogroup" aria-label="Who to play" data-group="level">
+                <button type="button" role="radio" data-value="beginner">Beginner</button>
+                <button type="button" role="radio" data-value="skilled">Skilled</button>
+                <button type="button" role="radio" data-value="master">Master</button>
+              </div>
+              <button type="button" class="primary" id="play-computer">Play</button>
+            </div>
+          </div>
+
+          <button type="button" class="settings-line" id="open-game-settings" aria-label="Game settings: table, match and place">
+            <span class="settings-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span>
+            <span id="settings-summary"></span>
+            <span class="settings-change">Change</span>
+            <span aria-hidden="true">›</span>
           </button>
 
-          <div class="tile tile-computer">
-            <span class="tile-kicker">Play the computer</span>
-            <div class="seg opponents" role="radiogroup" aria-label="Who to play" data-group="level">
-              <button type="button" role="radio" data-value="beginner">Beginner</button>
-              <button type="button" role="radio" data-value="skilled">Skilled</button>
-              <button type="button" role="radio" data-value="master">Master</button>
-            </div>
-            <button type="button" class="primary" id="play-computer">Play</button>
-          </div>
+          <nav class="quick-links" aria-label="More ways to play">
+            <button type="button" id="open-friend">
+              <span class="ql-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>
+              <span class="ql-text"><strong>Play a friend</strong><span>Room link, or one device</span></span>
+            </button>
+            <button type="button" id="play-daily">
+              <span class="ql-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+              <span class="ql-text"><strong id="daily-title">Daily puzzle</strong><span id="daily-text">Same table for everyone today</span></span>
+              <span class="ql-cta" id="daily-cta">Play</span>
+            </button>
+            <button type="button" id="open-leaderboard">
+              <span class="ql-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg></span>
+              <span class="ql-text"><strong>Leaderboard</strong><span>See where you stand</span></span>
+            </button>
+            <button type="button" id="open-howto">
+              <span class="ql-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></span>
+              <span class="ql-text"><strong>How to play</strong><span>A one-minute lesson</span></span>
+            </button>
+          </nav>
         </div>
-
-        <button type="button" class="settings-line" id="open-game-settings" aria-label="Game settings: table, match and place">
-          <span id="settings-summary"></span>
-          <span aria-hidden="true">›</span>
-        </button>
 
         <!-- Beside the main area on wide screens, below it on narrow ones. -->
         <aside class="home-side">
-          <button type="button" class="daily-banner" id="play-daily">
-            <span class="daily-coin" aria-hidden="true">🪙</span>
-            <span class="daily-text">
-              <strong id="daily-title">Daily puzzle</strong>
-              <span id="daily-text">Same table for everyone today</span>
-            </span>
-            <span class="daily-cta" id="daily-cta">Play</span>
-          </button>
+          <!-- Your climb to the next tier, when you've played online -->
+          <div class="climb" id="player-climb" hidden>
+            <span class="tile-kicker">Your climb</span>
+            <div class="climb-bar" role="progressbar" aria-label="Progress to the next tier" aria-valuemin="0" aria-valuemax="100"><span id="climb-fill"></span></div>
+            <span id="climb-note" class="muted small"></span>
+          </div>
 
           <div id="challenges" class="challenges" hidden>
             <h3 class="sub">Challenges</h3>
@@ -100,12 +124,6 @@
           </div>
           <p id="challenge-status" class="status bad" aria-live="polite"></p>
         </aside>
-
-        <nav class="quick-links" aria-label="More">
-          <button type="button" id="open-friend">Play a friend</button>
-          <button type="button" id="open-leaderboard">Leaderboard</button>
-          <button type="button" id="open-howto">How to play</button>
-        </nav>
 
         <button type="button" id="install" hidden>Install Zeni</button>
         <div id="ios-hint" class="hint" hidden>
