@@ -346,6 +346,34 @@ function paintedTop(color: string): HTMLCanvasElement {
   return c;
 }
 
+/**
+ * A table top as it's seen from above, like the flat view's: the grain turned slightly, a broad soft
+ * sheen from the top-left where the light is, and a little darker toward the rim. The cylinder's cap
+ * maps this square onto the round top.
+ */
+function varnished(surface: HTMLCanvasElement): HTMLCanvasElement {
+  const size = 1024;
+  const [c, g] = canvas(size, size);
+  const mid = size / 2;
+  g.translate(mid, mid);
+  g.rotate(-0.12);
+  const span = size * 1.15;
+  g.drawImage(surface, -span / 2, -span / 2, span, span);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  const sheen = g.createRadialGradient(mid - size * 0.18, mid - size * 0.22, size * 0.02, mid - size * 0.1, mid - size * 0.12, size * 0.55);
+  sheen.addColorStop(0, "rgba(255, 236, 205, 0.14)");
+  sheen.addColorStop(0.5, "rgba(255, 236, 205, 0.04)");
+  sheen.addColorStop(1, "rgba(0, 0, 0, 0)");
+  g.fillStyle = sheen;
+  g.fillRect(0, 0, size, size);
+  const rim = g.createRadialGradient(mid, mid, size * 0.36, mid, mid, size * 0.5);
+  rim.addColorStop(0, "rgba(0, 0, 0, 0)");
+  rim.addColorStop(1, "rgba(0, 0, 0, 0.3)");
+  g.fillStyle = rim;
+  g.fillRect(0, 0, size, size);
+  return c;
+}
+
 /** Dark floorboards. */
 function planks(): HTMLCanvasElement {
   const wood = woodTexture(WALNUT);
@@ -367,7 +395,7 @@ export function placeArt(id: PlaceId): PlaceArt {
           backdrop: cafeBackdrop(),
           floor: planks(),
           floorRepeat: 8,
-          tableTop: paintedTop("#8fd3bf"),
+          tableTop: varnished(paintedTop("#8fd3bf")),
           tableSide: 0x4f8f7e,
           light: { sky: 0xffe6c2, ground: 0x3a2414, fill: 1.4, key: 0xffd59a, keyIntensity: 2.0 },
         }
@@ -375,9 +403,9 @@ export function placeArt(id: PlaceId): PlaceArt {
           backdrop: kitchenBackdrop(),
           floor: tiles("#d9b48c", "#b8916b"),
           floorRepeat: 10,
-          tableTop: woodTexture(OAK),
-          tableSide: 0x9a6e45,
-          light: { sky: 0xfff6e6, ground: 0x6a4a30, fill: 1.8, key: 0xfff0d6, keyIntensity: 2.2 },
+          tableTop: varnished(woodTexture(WALNUT)),
+          tableSide: 0x3b2213,
+          light: { sky: 0xfff3e0, ground: 0x4a2e1a, fill: 1.5, key: 0xffe7c4, keyIntensity: 2.2 },
         };
   built.set(id, art);
   return art;

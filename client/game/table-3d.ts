@@ -20,6 +20,7 @@ import {
   LatheGeometry,
   Mesh,
   MeshBasicMaterial,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
   Plane,
@@ -185,7 +186,8 @@ export class Table3D implements TableView {
   private place: PlaceId | null = null;
   private readonly fill = new HemisphereLight(0xfff3e0, 0x3a2414, 1.6);
   private readonly key = new DirectionalLight(0xffe3bd, 2.2);
-  private readonly tableTop = new MeshStandardMaterial({ roughness: 0.55, metalness: 0 });
+  /** Varnished: a clear coat over the wood gives it a soft shine, as a real table has. */
+  private readonly tableTop = new MeshPhysicalMaterial({ roughness: 0.5, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.35 });
   private readonly tableSide = new MeshStandardMaterial({ color: 0x3b2213, roughness: 0.6 });
   private readonly floorMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
   private readonly floor = new Mesh(new PlaneGeometry(9000, 9000), this.floorMat);
