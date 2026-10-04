@@ -28,100 +28,81 @@
   <body>
     <!-- Home -->
     <section id="home" class="screen" hidden>
-      <header class="brand">
-        <canvas class="brand-coin" width="160" height="160" aria-hidden="true"></canvas>
-        <h1>Zeni</h1>
-        <p class="tagline"><span lang="ja">銭はじき</span> · flick the coins</p>
+      <header class="home-top">
+        <div class="logo">
+          <canvas class="brand-coin" width="68" height="68" aria-hidden="true"></canvas>
+          <h1>Zeni</h1>
+        </div>
+        <div class="home-top-actions">
+          <button type="button" id="toggle-sound" class="icon-btn" aria-pressed="true" aria-label="Sound on"></button>
+          <div id="player-card">
+            <div id="player-out">
+              <button type="button" class="pill" id="create-player">Create player</button>
+            </div>
+            <div id="player-in" hidden>
+              <button type="button" class="pill player-pill" id="open-settings" aria-label="Your player and settings">
+                <span id="player-badge"></span>
+                <span class="pill-text"><strong id="player-name"></strong><span id="player-rating"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
       </header>
 
-      <div class="menu">
-        <div class="card">
-          <h2>Play the computer</h2>
-          <div class="seg opponents" role="radiogroup" aria-label="Who to play" data-group="level">
-            <button type="button" role="radio" data-value="beginner">Beginner</button>
-            <button type="button" role="radio" data-value="skilled">Skilled</button>
-            <button type="button" role="radio" data-value="master">Master</button>
-          </div>
-          <button type="button" class="primary" id="play-computer">Play</button>
+      <div class="home-body">
+        <!-- Your climb to the next tier, when you've played online -->
+        <div class="climb" id="player-climb" hidden>
+          <div class="climb-bar" role="progressbar" aria-label="Progress to the next tier" aria-valuemin="0" aria-valuemax="100"><span id="climb-fill"></span></div>
+          <span id="climb-note" class="muted small"></span>
         </div>
 
-        <div class="card" id="daily-card">
-          <h2 id="daily-title">Daily puzzle</h2>
-          <p class="muted small" id="daily-text">The same table for everyone today. Keep as many coins as you can in 3 turns.</p>
-          <button type="button" class="wide" id="play-daily">Play today's puzzle</button>
-        </div>
+        <div class="play-tiles">
+          <button type="button" class="tile tile-online" id="quick-match">
+            <span class="tile-kicker">Online</span>
+            <strong class="tile-title">Quick Match</strong>
+            <span class="tile-sub" id="presence" aria-live="polite"></span>
+          </button>
 
-        <button type="button" id="play-friend">Play a friend on this device</button>
-
-        <div class="card">
-          <h2>Table</h2>
-          <div class="seg" role="radiogroup" aria-label="Table" data-group="table">
-            <button type="button" role="radio" data-value="easy">Easy · 2 cups</button>
-            <button type="button" role="radio" data-value="hard">Hard · 4 cups</button>
-          </div>
-          <div class="seg" role="radiogroup" aria-label="Match" data-group="match">
-            <button type="button" role="radio" data-value="1">Single game</button>
-            <button type="button" role="radio" data-value="3">Best of 3</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Place</h2>
-          <div class="seg" role="radiogroup" aria-label="Place" id="place-picker"></div>
-          <p class="muted small" id="place-note"></p>
-        </div>
-
-        <div class="card" id="player-card">
-          <h2>Your player</h2>
-          <div id="player-out">
-            <p class="muted">Online play needs a player: just a nickname. No email, no password.</p>
-            <div class="row">
-              <button type="button" class="primary" id="create-player">Create player</button>
-              <button type="button" id="restore-player">I have a code</button>
+          <div class="tile tile-computer">
+            <span class="tile-kicker">Play the computer</span>
+            <div class="seg opponents" role="radiogroup" aria-label="Who to play" data-group="level">
+              <button type="button" role="radio" data-value="beginner">Beginner</button>
+              <button type="button" role="radio" data-value="skilled">Skilled</button>
+              <button type="button" role="radio" data-value="master">Master</button>
             </div>
-          </div>
-          <div id="player-in" hidden>
-            <div class="who">
-              <div class="who-name"><span id="player-badge"></span><strong id="player-name"></strong></div>
-              <span id="player-rating" class="muted"></span>
-              <div class="climb" id="player-climb" hidden>
-                <div class="climb-bar" role="progressbar" aria-label="Progress to the next tier" aria-valuemin="0" aria-valuemax="100"><span id="climb-fill"></span></div>
-                <span id="climb-note" class="muted small"></span>
-              </div>
-            </div>
-            <button type="button" id="open-settings">Settings</button>
+            <button type="button" class="primary" id="play-computer">Play</button>
           </div>
         </div>
 
-        <div class="card" id="online-card">
-          <h2>Play online</h2>
-          <p id="presence" class="presence" aria-live="polite"></p>
-          <div id="challenges" class="challenges" hidden>
-            <h3 class="sub">Challenges</h3>
-            <ul class="challenge-list"></ul>
-          </div>
-          <button type="button" class="primary wide" id="quick-match">Quick Match</button>
-          <p class="muted small">Play a stranger of a similar rating on the table chosen above. Counts for your rank.</p>
-          <button type="button" class="wide" id="online-create">Play a friend: create a room</button>
-          <p class="muted small">You'll get a link to send them. Also counts for your rank.</p>
-          <form id="online-join" class="row" novalidate>
-            <input id="online-code" class="field code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Room code" aria-label="Room code" />
-            <button type="submit">Join</button>
-          </form>
-          <p id="online-status" class="status" aria-live="polite"></p>
-          <div id="recent" class="challenges" hidden>
-            <h3 class="sub">Play again</h3>
-            <ul class="challenge-list"></ul>
-          </div>
-          <p id="challenge-status" class="status bad" aria-live="polite"></p>
+        <button type="button" class="settings-line" id="open-game-settings" aria-label="Game settings: table, match and place">
+          <span id="settings-summary"></span>
+          <span aria-hidden="true">›</span>
+        </button>
+
+        <button type="button" class="daily-banner" id="play-daily">
+          <span class="daily-coin" aria-hidden="true">🪙</span>
+          <span class="daily-text">
+            <strong id="daily-title">Daily puzzle</strong>
+            <span id="daily-text">Same table for everyone today</span>
+          </span>
+          <span class="daily-cta" id="daily-cta">Play</span>
+        </button>
+
+        <div id="challenges" class="challenges" hidden>
+          <h3 class="sub">Challenges</h3>
+          <ul class="challenge-list"></ul>
         </div>
+        <div id="recent" class="challenges" hidden>
+          <h3 class="sub">Play again</h3>
+          <ul class="challenge-list"></ul>
+        </div>
+        <p id="challenge-status" class="status bad" aria-live="polite"></p>
 
-        <button type="button" id="open-leaderboard">Leaderboard</button>
-
-        <div class="row">
+        <nav class="quick-links" aria-label="More">
+          <button type="button" id="open-friend">Play a friend</button>
+          <button type="button" id="open-leaderboard">Leaderboard</button>
           <button type="button" id="open-howto">How to play</button>
-          <button type="button" id="toggle-sound" aria-pressed="true">Sound on</button>
-        </div>
+        </nav>
 
         <button type="button" id="install" hidden>Install Zeni</button>
         <div id="ios-hint" class="hint" hidden>
@@ -138,6 +119,43 @@
         </footer>
       </div>
     </section>
+
+    <!-- Game settings: table, match and place -->
+    <div id="sheet-game" class="overlay" hidden>
+      <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
+        <h3 id="game-settings-title" class="title">Game settings</h3>
+        <span class="label">Table</span>
+        <div class="seg" role="radiogroup" aria-label="Table" data-group="table">
+          <button type="button" role="radio" data-value="easy">Easy</button>
+          <button type="button" role="radio" data-value="hard">Hard</button>
+        </div>
+        <span class="label">Match</span>
+        <div class="seg" role="radiogroup" aria-label="Match" data-group="match">
+          <button type="button" role="radio" data-value="1">Single game</button>
+          <button type="button" role="radio" data-value="3">Best of 3</button>
+        </div>
+        <span class="label">Place</span>
+        <div class="seg" role="radiogroup" aria-label="Place" id="place-picker"></div>
+        <p class="muted small" id="place-note"></p>
+        <button type="button" class="primary wide" id="game-settings-done">Done</button>
+      </div>
+    </div>
+
+    <!-- Play a friend: online room, or on this device -->
+    <div id="sheet-friend" class="overlay" hidden>
+      <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="friend-title">
+        <h3 id="friend-title" class="title">Play a friend</h3>
+        <button type="button" class="primary wide" id="online-create">Create a room</button>
+        <p class="muted small">You'll get a link to send them. Counts for your rank.</p>
+        <form id="online-join" class="row" novalidate>
+          <input id="online-code" class="field code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Room code" aria-label="Room code" />
+          <button type="submit">Join</button>
+        </form>
+        <p id="online-status" class="status" aria-live="polite"></p>
+        <button type="button" class="wide" id="play-friend">Play on this device</button>
+        <button type="button" class="link" id="friend-close">Close</button>
+      </div>
+    </div>
 
     <!-- Game -->
     <main id="game" class="screen" hidden>

@@ -53,6 +53,7 @@ function show(screen: "home" | "game", detail = ""): void {
   setScreen(screen === "home" ? "home" : `game:${detail || "local"}`);
   home.hidden = screen !== "home";
   gameScreen.hidden = screen !== "game";
+  gameSheet.hidden = friendSheet.hidden = true; // starting a game closes Home's sheets
   if (screen === "home") {
     renderDaily();
     void refreshPlayer(); // ratings change after online games
@@ -114,7 +115,10 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="table
   const d = b.dataset.value as Difficulty;
   b.textContent = `${d === "easy" ? "Easy" : "Hard"} · ${CUPS[d]} cups`;
 }
-bindSegment("match", match, (v) => save("zeni.match", (match = v as "1" | "3")));
+bindSegment("match", match, (v) => {
+  save("zeni.match", (match = v as "1" | "3"));
+  renderSummary();
+});
 
 // --- Places: where the table stands. Reaching a tier opens its place. ----------
 
@@ -132,6 +136,7 @@ function renderPlaces(): void {
   const rating = currentPlayer()?.rating ?? null;
   const current = placeFor(pickedPlace, rating);
   setPlace(current.id);
+  renderSummary();
   placePicker.replaceChildren(
     ...PLACES.map((p) => {
       const b = document.createElement("button");
@@ -139,7 +144,7 @@ function renderPlaces(): void {
       b.setAttribute("role", "radio");
       const open = unlocked(p, rating);
       const tier = TIERS.find((t) => t.id === p.tier)!;
-      b.textContent = open ? p.name : `${p.name} · ${tier.name}`;
+      b.textContent = open ? p.name : `🔒 ${p.name}`;
       b.disabled = !open;
       b.classList.toggle("current", p.id === current.id);
       b.setAttribute("aria-checked", String(p.id === current.id));
@@ -166,11 +171,40 @@ window.addEventListener(PLAYER_READY, renderPlaces);
 bindSegment("table", table, (v) => {
   save("zeni.table", (table = v as Difficulty));
   renderPresence();
+  renderSummary();
 });
+
+// --- Home's sheets: game settings, and playing a friend ----------------------
+
+const gameSheet = $("#sheet-game");
+const friendSheet = $("#sheet-friend");
+
+/** "Easy table · Single game · Kitchen": the settings at a glance; tap to change them. */
+function renderSummary(): void {
+  const place = placeFor(pickedPlace, currentPlayer()?.rating ?? null);
+  $("#settings-summary").textContent = `${table === "easy" ? "Easy" : "Hard"} table · ${match === "3" ? "Best of 3" : "Single game"} · ${place.name}`;
+}
+
+function openSheet(sheet: HTMLElement, focus: string): void {
+  sheet.hidden = false;
+  $<HTMLElement>(focus).focus();
+}
+$("#open-game-settings").addEventListener("click", () => openSheet(gameSheet, "#game-settings-done"));
+$("#game-settings-done").addEventListener("click", () => (gameSheet.hidden = true));
+$("#open-friend").addEventListener("click", () => openSheet(friendSheet, "#online-create"));
+$("#friend-close").addEventListener("click", () => (friendSheet.hidden = true));
+for (const sheet of [gameSheet, friendSheet]) {
+  // Tap outside the card to close.
+  sheet.addEventListener("click", (e) => e.target === sheet && (sheet.hidden = true));
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") gameSheet.hidden = friendSheet.hidden = true;
+});
+renderSummary();
 
 function renderPresence(): void {
   const info = latestPresence();
-  $("#presence").textContent = info ? describePresence(info, table) : "";
+  $("#presence").textContent = (info && describePresence(info, table)) || "Play someone at your level";
 }
 startPresence(renderPresence);
 
@@ -178,7 +212,7 @@ $("#play-computer").addEventListener("click", () => play(level));
 $("#play-friend").addEventListener("click", () => play("friend"));
 $("#play-daily").addEventListener("click", () => play("daily"));
 
-/** "Daily puzzle #4", with today's result once you've played it. */
+/** The daily puzzle banner: today's number, and your result once you've played it. */
 function renderDaily(): void {
   const n = dailyNumber();
   $("#daily-title").textContent = `Daily puzzle #${n}`;
@@ -189,17 +223,19 @@ function renderDaily(): void {
     // Nothing stored.
   }
   const today = done?.n === n ? done : null;
-  $("#daily-text").textContent = today
-    ? `Today you kept ${today.kept} of ${COIN_COUNT}. A new table at midnight UTC.`
-    : "The same table for everyone today. Keep as many coins as you can in 3 turns.";
-  $("#play-daily").textContent = today ? "Practise today's table" : "Play today's puzzle";
+  $("#daily-text").textContent = today ? `You kept ${today.kept} of ${COIN_COUNT} today` : "Same table for everyone today";
+  $("#daily-cta").textContent = today ? "Practise" : "Play";
 }
 renderDaily();
 
 const soundButton = $<HTMLButtonElement>("#toggle-sound");
+const SPEAKER = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/>';
 function syncSound(): void {
-  soundButton.textContent = sound.enabled ? "Sound on" : "Sound off";
+  soundButton.innerHTML = sound.enabled
+    ? `${SPEAKER}<path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+    : `${SPEAKER}<path d="M16.5 9.5l5 5m0-5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
   soundButton.setAttribute("aria-pressed", String(sound.enabled));
+  soundButton.setAttribute("aria-label", sound.enabled ? "Sound on" : "Sound off");
 }
 soundButton.addEventListener("click", () => {
   sound.unlock();
@@ -214,7 +250,7 @@ setupInstall($<HTMLButtonElement>("#install"), $("#ios-hint"), $<HTMLButtonEleme
 // The big coin on the home screen reuses the in-game coin art.
 const brand = $<HTMLCanvasElement>(".brand-coin");
 const dpr = Math.min(window.devicePixelRatio || 1, 3);
-const brandSize = 96;
+const brandSize = 34;
 brand.width = brand.height = brandSize * dpr;
 brand.style.width = brand.style.height = `${brandSize}px`;
 const art = makeCoinSprite(1, (brandSize * dpr * 0.94) / 72); // 72 = coin diameter in board units

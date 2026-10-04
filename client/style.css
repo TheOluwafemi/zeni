@@ -146,57 +146,251 @@ button.ghost:hover {
   box-shadow: inset 0 0 0 1px var(--gold);
 }
 
-/* Home */
+/* Home: a slim top bar, two big ways to play, and everything else one tap away. */
 
-/* Centred when it fits; scrolls from the top when it doesn't (auto margins, unlike justify-content,
-   never push content above the top edge). */
 #home {
-  gap: 24px;
+  gap: 0;
+  max-width: 520px;
   overflow-y: auto;
 }
 
-#home .brand {
-  margin-top: auto;
-}
-
-#home .menu {
-  margin-bottom: auto;
-  padding-bottom: 8px;
-}
-
-.brand {
+.home-top {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0 18px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo h1 {
+  margin: 0;
+  font-family: var(--title);
+  font-size: 1.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
 }
 
 .brand-coin {
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
   animation: settle 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.brand h1 {
-  margin: 10px 0 0;
-  font-family: var(--title);
-  font-size: 3.2rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+.home-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
-.tagline {
-  margin: 4px 0 0;
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
   color: var(--muted);
 }
 
-.menu {
+.pill {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+
+.player-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 0 14px 0 6px;
+}
+
+.pill-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.pill-text strong,
+.pill-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#player-rating {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.home-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+
+#player-climb {
+  margin-top: -6px;
+}
+
+.play-tiles {
+  display: grid;
   gap: 12px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  text-align: left;
+}
+
+.tile-kicker {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Quick Match: the main way to play, in gold. */
+.tile-online {
+  min-height: 132px;
+  justify-content: flex-end;
+  border: none;
+  background: radial-gradient(120% 140% at 100% 0%, #f6d48a 0%, #e8b85a 45%, #c98d3a 100%);
+  color: var(--gold-ink);
+  box-shadow: 0 10px 30px rgba(232, 184, 90, 0.18);
+}
+
+.tile-online .tile-kicker {
+  color: rgba(36, 22, 12, 0.7);
+}
+
+.tile-title {
+  font-family: var(--title);
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.tile-sub {
+  color: rgba(36, 22, 12, 0.75);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.tile-online:hover {
+  filter: brightness(1.04);
+}
+
+.tile-computer .seg {
+  margin: 0;
+}
+
+.tile-computer .seg.opponents button {
+  min-height: 86px;
+}
+
+.seg.opponents .face svg {
+  width: 44px;
+  height: 44px;
 }
 
 #play-computer {
   width: 100%;
+}
+
+/* "Easy table · Single game · Kitchen ›" */
+.settings-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.settings-line:hover {
+  color: var(--fg);
+}
+
+.daily-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 68px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, rgba(43, 179, 163, 0.16), rgba(43, 179, 163, 0.04));
+  border-color: rgba(43, 179, 163, 0.35);
+  text-align: left;
+}
+
+.daily-coin {
+  font-size: 1.6rem;
+}
+
+.daily-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#daily-text {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.daily-cta {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #2bb3a3;
+  color: #0e2a26;
+  font-size: 0.85rem;
+}
+
+.quick-links {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.quick-links button {
+  min-height: 48px;
+  padding: 0 8px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+}
+
+/* Wider screens: the two ways to play side by side. */
+@media (min-width: 560px) {
+  .play-tiles {
+    grid-template-columns: 1fr 1.25fr;
+  }
 }
 
 .hint {
@@ -1343,4 +1537,35 @@ button.danger:hover {
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 500;
+}
+
+.home-top .icon-btn {
+  height: 40px;
+  min-height: 0;
+  flex: none;
+}
+
+.home-top .pill {
+  min-height: 0;
+  height: 40px;
+}
+
+.seg.opponents strong {
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* Lighter rows on Home for challenges and Play again. */
+.home-body .challenge-row {
+  padding: 6px 8px 6px 12px;
+  border-radius: 12px;
+}
+
+.home-body .challenge-actions button {
+  min-height: 32px;
+}
+
+/* No empty gaps on Home where a message would go. */
+.home-body .status:empty {
+  display: none;
 }

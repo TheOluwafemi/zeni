@@ -143,7 +143,8 @@ function render(incoming: Challenge[], outgoing: Challenge[], opponents: Opponen
 
   // Recent opponents, minus anyone already in a challenge above.
   const busy = new Set([...incoming.map((c) => c.from!.nickname), ...outgoing.map((c) => c.to!.nickname)]);
-  const recent = opponents.filter((o) => !busy.has(o.nickname));
+  // The three most recent: enough to find someone again without crowding Home.
+  const recent = opponents.filter((o) => !busy.has(o.nickname)).slice(0, 3);
   recentBox.querySelector("ul")!.replaceChildren(
     ...recent.map((o) => {
       const { wins, losses, draws } = o.record;
