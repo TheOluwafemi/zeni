@@ -7,7 +7,7 @@
 
 import { parseArgs } from "node:util";
 import { CUPS } from "../shared/constants";
-import { Bot, QueueSocket, register, server, sleep } from "./online-bot";
+import { Bot, playShots, QueueSocket, register, server, sleep } from "./online-bot";
 
 const { values: args } = parseArgs({ options: { base: { type: "string", default: "http://localhost:5173" } } });
 const srv = server(args.base!);
@@ -82,6 +82,7 @@ async function main(): Promise<void> {
   check("the game starts when both are in", s1.state.turn === s2.state.turn);
   check("with the table they queued for", s1.state.cups.length === CUPS.easy, `cups: ${s1.state.cups.length}`);
 
+  await playShots(adaBot, beaBot, 2); // a real game: very short ones aren't rated
   beaBot.send({ t: "resign" });
   await Promise.all([adaBot.waitFor("over"), beaBot.waitFor("over")]);
   const over = adaBot.over!;

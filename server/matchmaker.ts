@@ -21,17 +21,33 @@ interface Attachment {
   sid: string;
   /** Set once the player has asked to queue: their place in line and any pending offer. */
   entry?: QEntry;
+  /** When the socket connected, so one that never asks to queue can be closed. */
+  openedAt?: number;
 }
+
+/** The queue is shared by everyone on a table: cap it so one script can't fill it. */
+const MAX_QUEUE_SOCKETS = 1000;
+/** A socket has this long to ask to queue. */
+const JOIN_WITHIN_MS = 15_000;
 
 const CLOSE: Partial<Record<ErrorCode, number>> = { unauthorized: 4401, already_queued: 4409, bad_message: 4400 };
 
 export class Matchmaker extends DurableObject<Env> {
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
+    // Close sockets that connected but never asked to queue, then refuse a crowd.
+    const now = Date.now();
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (!att?.entry && now - (att?.openedAt ?? 0) > JOIN_WITHIN_MS) this.close(ws, 4408, "no_join");
+    }
+    if (this.ctx.getWebSockets().filter((ws) => ws.readyState === WebSocket.READY_STATE_OPEN).length >= MAX_QUEUE_SOCKETS) {
+      return new Response("Queue is full", { status: 503 });
+    }
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ table: this.table(), sid: crypto.randomUUID() } satisfies Attachment);
+    server.serializeAttachment({ table: this.table(), sid: crypto.randomUUID(), openedAt: now } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -104,8 +120,9 @@ export class Matchmaker extends DurableObject<Env> {
     for (const [sid, ws] of sockets) {
       if (!sid) continue;
       const entry = core.entries.get(sid);
+      const openedAt = (ws.deserializeAttachment() as Attachment | null)?.openedAt;
       try {
-        ws.serializeAttachment({ table: this.table(), sid, ...(entry ? { entry } : {}) } satisfies Attachment);
+        ws.serializeAttachment({ table: this.table(), sid, openedAt, ...(entry ? { entry } : {}) } satisfies Attachment);
       } catch {
         // Closed sockets can't store anything; they're out of the queue anyway.
       }

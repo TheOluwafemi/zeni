@@ -19,10 +19,17 @@ import { isFailure, newRoom, RoomCore, type Out, type RoomRec, type Step } from 
 /** What each socket remembers across hibernation. */
 interface Attachment {
   room: string;
+  /** When the socket connected, so one that never says hello can be closed. */
+  openedAt?: number;
   /** Set once the player has said hello. */
   seat?: Seat;
   playerId?: string;
 }
+
+/** A room never needs more than a few sockets (two players, a reconnect or two). */
+const MAX_ROOM_SOCKETS = 8;
+/** A socket has this long to say hello. */
+const HELLO_WITHIN_MS = 15_000;
 
 const CLOSE_CODES: Partial<Record<ErrorCode, number>> = {
   unauthorized: 4401,
@@ -76,10 +83,19 @@ export class Room extends DurableObject<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
+    // Close sockets that connected but never said who they are, then refuse a crowd.
+    const now = Date.now();
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (att?.seat === undefined && now - (att?.openedAt ?? 0) > HELLO_WITHIN_MS) this.closeQuietly(ws, 4408, "no_hello");
+    }
+    if (this.ctx.getWebSockets().filter((ws) => ws.readyState === WebSocket.READY_STATE_OPEN).length >= MAX_ROOM_SOCKETS) {
+      return new Response("Too many connections", { status: 429 });
+    }
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ room: request.headers.get("X-Room-Code") ?? "" } satisfies Attachment);
+    server.serializeAttachment({ room: request.headers.get("X-Room-Code") ?? "", openedAt: now } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -223,8 +239,11 @@ export class Room extends DurableObject<Env> {
         Date.now(),
         crypto.randomUUID(),
         core.rec.gameStartedAt ?? null,
+        core.rec.state?.shots ?? null,
       );
-      if (ratings) {
+      if (ratings && "unrated" in ratings) {
+        over.unrated = ratings.unrated;
+      } else if (ratings) {
         over.ratings = ratings;
         a.rating = ratings.after[0];
         b.rating = ratings.after[1];
@@ -296,6 +315,14 @@ export class Room extends DurableObject<Env> {
       for (const o of encoded) {
         if (o.to === "all" || o.to === seat) ws.send(o.text);
       }
+    }
+  }
+
+  private closeQuietly(ws: WebSocket, code: number, reason: string): void {
+    try {
+      ws.close(code, reason);
+    } catch {
+      // Already closed.
     }
   }
 

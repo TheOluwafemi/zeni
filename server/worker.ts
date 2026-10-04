@@ -4,7 +4,9 @@ import { handleAccounts } from "./accounts";
 import { handleChallenges } from "./challenges";
 import { handleLeaderboard } from "./leaderboard";
 import { maintenance } from "./maintenance";
+import { guard, withSecurityHeaders } from "./guard";
 import { handleTelemetry, logServerError } from "./telemetry";
+import { readJson } from "./http";
 
 // The Durable Object classes must be exported from the Worker's entry point.
 export { Matchmaker } from "./matchmaker";
@@ -17,7 +19,9 @@ const QUEUE_SOCKET = /^\/ws\/queue\/(easy|hard)$/;
 export default {
   async fetch(request, env, ctx) {
     try {
-      return await route(request, env, ctx);
+      const blocked = await guard(request, env);
+      if (blocked) return withSecurityHeaders(blocked);
+      return withSecurityHeaders(await route(request, env, ctx));
     } catch (e) {
       // Anything that slips through: record it so it can be found later, and answer cleanly.
       ctx.waitUntil(logServerError(env.DB, "server", e));
@@ -72,7 +76,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 
   // "3 online · 1 looking for a game". Anonymous: the body carries a random id made fresh per tab.
   if (url.pathname === "/api/presence" && request.method === "POST") {
-    const body = (await request.json().catch(() => null)) as { session?: unknown; leaving?: unknown } | null;
+    const body = (await readJson(request)) as { session?: unknown; leaving?: unknown } | null;
     if (body?.leaving === true) {
       await env.PRESENCE.getByName("global").leave(body.session);
       return new Response(null, { status: 204 });

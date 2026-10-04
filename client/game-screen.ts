@@ -965,7 +965,11 @@ function showOnlineResult(): void {
   const change = r ? r.after[o.seat] - r.before[o.seat] : 0;
   $("#result-rating").textContent = r
     ? `Rating ${r.before[o.seat]} → ${r.after[o.seat]} (${change >= 0 ? "+" : "−"}${Math.abs(change)})`
-    : "";
+    : over.unrated === "short"
+      ? "Not rated: the game ended before it really started."
+      : over.unrated === "repeat"
+        ? "Not rated: you've already played each other a few times today. Friendlies still count for fun."
+        : "";
 
   const tier = $("#result-tier");
   tier.className = "";

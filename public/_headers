@@ -1,0 +1,12 @@
+# Security headers for every static file (the Worker adds its own to /api and /ws responses).
+# CSP: only our own scripts and connections; images may also be data: (the opponent's cut-out is an
+# SVG data URL); inline styles for the privacy page; no framing by other sites. WebSockets are listed
+# by host as well as 'self' for older Safari: add any new domain (a custom domain) here.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' wss://zeni.oluwafemicodes.workers.dev wss://zeni-staging.oluwafemicodes.workers.dev; worker-src 'self'; manifest-src 'self'; media-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Strict-Transport-Security: max-age=31536000

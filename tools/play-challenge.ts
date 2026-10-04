@@ -7,7 +7,7 @@
 
 import { parseArgs } from "node:util";
 import { CUPS } from "../shared/constants";
-import { Bot, register, server, sleep } from "./online-bot";
+import { Bot, playShots, register, server, sleep } from "./online-bot";
 
 const { values: args } = parseArgs({ options: { base: { type: "string", default: "http://localhost:5173" } } });
 const srv = server(args.base!);
@@ -64,6 +64,7 @@ async function main(): Promise<void> {
   const after = [await call("/api/me/challenges", ada.code), await call("/api/me/challenges", bea.code)];
   check("once it starts, the challenge leaves both lists", after[0].body.outgoing.length === 0 && after[1].body.incoming.length === 0, JSON.stringify(after.map((a) => a.body)));
 
+  await playShots(adaBot, beaBot, 2); // a real game: very short ones aren't rated
   beaBot.send({ t: "resign" });
   await Promise.all([adaBot.waitFor("over"), beaBot.waitFor("over")]);
   check("it's a ranked game like any other", adaBot.over?.ratings !== null);

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { handleAccounts, type Db } from "./accounts";
-import { recordResult } from "./ratings";
+import { MIN_RATED_SHOTS, PAIR_RATED_PER_DAY, recordResult, type RatingResult } from "./ratings";
+
+const DAY = 24 * 60 * 60 * 1000;
 import { testDb } from "./test-db";
 
 let db: Db;
@@ -51,7 +53,8 @@ describe("recordResult", () => {
   });
 
   test("total rating is conserved however many games are played", async () => {
-    for (let i = 0; i < 20; i++) await recordResult(db, [ada, bea], [5, 4], (i % 3 === 0 ? 1 : 0) as 0 | 1, "normal");
+    // A game a day, so the daily cap on repeat pairings doesn't apply.
+    for (let i = 0; i < 20; i++) await recordResult(db, [ada, bea], [5, 4], (i % 3 === 0 ? 1 : 0) as 0 | 1, "normal", DAY * (i + 1));
     const a = (await row(ada))!;
     const b = (await row(bea))!;
     expect(a.rating + b.rating).toBe(2000);
@@ -61,12 +64,38 @@ describe("recordResult", () => {
 
   test("an upset pays more than a favourite's win", async () => {
     await db.prepare("UPDATE players SET rating = 1400 WHERE id = ?1").bind(ada).run();
-    const r = await recordResult(db, [ada, bea], [3, 6], 1, "normal"); // underdog Bea wins
-    expect(r!.after[1] - r!.before[1]).toBeGreaterThan(16);
+    const r = (await recordResult(db, [ada, bea], [3, 6], 1, "normal")) as RatingResult; // underdog Bea wins
+    expect(r.after[1] - r.before[1]).toBeGreaterThan(16);
   });
 
   test("does nothing if a player no longer exists", async () => {
     expect(await recordResult(db, [ada, "ghost"], [1, 0], 0, "normal")).toBeNull();
     expect(await row(ada)).toMatchObject({ rating: 1000, games: 0 });
+  });
+});
+
+describe("protection against farming rating with a second account", () => {
+  test("a game that ends before it really started isn't rated, but is logged", async () => {
+    const r = await recordResult(db, [ada, bea], [0, 0], 0, "resign", 5000, "quick", null, MIN_RATED_SHOTS - 1);
+    expect(r).toEqual({ unrated: "short" });
+    expect(await row(ada)).toMatchObject({ rating: 1000, games: 0, wins: 0 });
+    expect(await db.prepare("SELECT rated FROM matches WHERE id = 'quick'").bind().first()).toEqual({ rated: 0 });
+  });
+
+  test(`the same two players get ${PAIR_RATED_PER_DAY} rated games a day; more are friendlies`, async () => {
+    for (let i = 0; i < PAIR_RATED_PER_DAY; i++) {
+      expect(await recordResult(db, [ada, bea], [5, 3], 0, "normal", 1000 + i, `g${i}`, null, 20)).toHaveProperty("after");
+    }
+    const extra = await recordResult(db, [bea, ada], [5, 3], 0, "normal", 2000, "extra", null, 20); // either seat order
+    expect(extra).toEqual({ unrated: "repeat" });
+    expect((await row(ada))!.games).toBe(PAIR_RATED_PER_DAY);
+    // A day later, they count again.
+    expect(await recordResult(db, [ada, bea], [5, 3], 0, "normal", 1000 + DAY + 1, "next", null, 20)).toHaveProperty("after");
+  });
+
+  test("a third player isn't affected by someone else's repeat pairings", async () => {
+    const cyd = await signUp("Cyd");
+    for (let i = 0; i < PAIR_RATED_PER_DAY; i++) await recordResult(db, [ada, bea], [5, 3], 0, "normal", 1000 + i, `g${i}`, null, 20);
+    expect(await recordResult(db, [ada, cyd], [5, 3], 0, "normal", 2000, "c", null, 20)).toHaveProperty("after");
   });
 });

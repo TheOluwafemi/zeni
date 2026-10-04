@@ -186,3 +186,17 @@ export class QueueSocket {
     return this.inbox.some((m) => m.t === "matched");
   }
 }
+
+/** Let both bots play until `n` shots have been taken, so a game counts as a real one (and is rated). */
+export async function playShots(a: Bot, b: Bot, n: number): Promise<void> {
+  a.autoplay = b.autoplay = true;
+  void a.maybePlay();
+  void b.maybePlay();
+  const start = Date.now();
+  while ((a.state?.shots ?? 0) < n) {
+    if (Date.now() - start > 20_000) throw new Error(`bots didn't reach ${n} shots`);
+    await sleep(50);
+  }
+  a.autoplay = b.autoplay = false;
+  await sleep(400); // let any shot already on its way land
+}
