@@ -32,6 +32,7 @@ const statusLine = $("#challenge-status");
 let enter: (room: string, opponent: string) => void = () => {};
 let homeVisible: () => boolean = () => true;
 let tableNow: () => Difficulty = () => "easy";
+let bestOfNow: () => 1 | 3 = () => 1;
 
 const tableName = (t: Difficulty) => (t === "easy" ? "Easy table" : "Hard table");
 const minutes = (ms: number) => `${Math.max(1, Math.round(ms / 60_000))} min`;
@@ -79,7 +80,7 @@ export function challengeError(e: unknown, nickname: string): string {
 /** Challenge a player by nickname on a table, then go to the room. Returns an error sentence, or null. */
 export async function challenge(nickname: string, table: Difficulty): Promise<string | null> {
   try {
-    const c = await api<Challenge>("/api/challenges", { method: "POST", body: { to: nickname, table }, auth: true });
+    const c = await api<Challenge>("/api/challenges", { method: "POST", body: { to: nickname, table, bestOf: bestOfNow() }, auth: true });
     enter(c.room, c.to?.nickname ?? nickname);
     return null;
   } catch (e) {
@@ -181,10 +182,16 @@ export async function refresh(): Promise<void> {
   }
 }
 
-export function startChallenges(opts: { enter: (room: string, opponent: string) => void; homeVisible: () => boolean; table: () => Difficulty }): void {
+export function startChallenges(opts: {
+  enter: (room: string, opponent: string) => void;
+  homeVisible: () => boolean;
+  table: () => Difficulty;
+  bestOf: () => 1 | 3;
+}): void {
   enter = opts.enter;
   homeVisible = opts.homeVisible;
   tableNow = opts.table;
+  bestOfNow = opts.bestOf;
   void refresh();
   window.setInterval(() => void refresh(), REFRESH_MS);
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && void refresh());

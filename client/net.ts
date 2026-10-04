@@ -47,6 +47,8 @@ export class RoomClient {
     readonly code: string,
     create: Difficulty | null,
     private readonly handlers: RoomHandlers,
+    /** For a room this phone creates: a single game or a best-of-3. */
+    private readonly bestOf: 1 | 3 = 1,
   ) {
     this.create = create;
     window.addEventListener("online", this.wake);
@@ -64,7 +66,7 @@ export class RoomClient {
       const code = identity.code;
       if (!code) return this.finish("signed_out");
       // After the first hello, never ask to create again: the room exists, or the code is taken.
-      this.send({ t: "hello", code, create: this.create ?? undefined });
+      this.send({ t: "hello", code, create: this.create ?? undefined, ...(this.create && this.bestOf === 3 ? { bestOf: 3 as const } : {}) });
       this.hellos++;
       this.timers.ping = window.setInterval(() => this.heartbeat(ws), PING_MS);
     });

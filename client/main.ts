@@ -40,6 +40,8 @@ function save(key: string, value: string): void {
 
 let level: AiLevel = load("zeni.level", AI_LEVELS, "beginner");
 let table: Difficulty = load("zeni.table", ["easy", "hard"] as const, "easy");
+let match = load("zeni.match", ["1", "3"] as const, "1");
+const bestOf = (): 1 | 3 => (match === "3" ? 3 : 1);
 
 // --- Screens --------------------------------------------------------------
 
@@ -57,7 +59,7 @@ function play(opponent: Opponent): void {
   sound.unlock();
   if (opponent !== "friend") ping("computer_game");
   show("game", opponent === "friend" ? "friend" : "computer");
-  start({ opponent, difficulty: table });
+  start({ opponent, difficulty: table, bestOf: bestOf() });
 }
 
 setOnExit(() => show("home"));
@@ -96,6 +98,7 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="table
   const d = b.dataset.value as Difficulty;
   b.textContent = `${d === "easy" ? "Easy" : "Hard"} · ${CUPS[d]} cups`;
 }
+bindSegment("match", match, (v) => save("zeni.match", (match = v as "1" | "3")));
 bindSegment("table", table, (v) => {
   save("zeni.table", (table = v as Difficulty));
   renderPresence();
@@ -181,6 +184,7 @@ startChallenges({
   },
   homeVisible: () => !home.hidden,
   table: () => table,
+  bestOf,
 });
 
 $("#online-create").addEventListener("click", () =>
@@ -188,7 +192,7 @@ $("#online-create").addEventListener("click", () =>
     cancelQuickMatch();
     sound.unlock();
     show("game", "online");
-    startOnline(newRoomCode(), table);
+    startOnline(newRoomCode(), table, { bestOf: bestOf() });
   }),
 );
 

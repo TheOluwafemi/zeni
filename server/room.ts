@@ -64,9 +64,9 @@ export class Room extends DurableObject<Env> {
   // --- Called by the matchmaker ------------------------------------------------
 
   /** Open a room reserved for two players (matched, or a challenge). False if this code is already in use. */
-  async open(code: string, table: Difficulty, reserved: [string, string], kind: "quick" | "challenge" = "quick"): Promise<boolean> {
+  async open(code: string, table: Difficulty, reserved: [string, string], kind: "quick" | "challenge" = "quick", bestOf: 1 | 3 = 1): Promise<boolean> {
     if (this.core) return false;
-    this.core = new RoomCore(newRoom(code, table, Date.now(), reserved, kind));
+    this.core = new RoomCore(newRoom(code, table, Date.now(), reserved, kind, bestOf));
     await this.save();
     await this.reschedule();
     return true;
@@ -126,7 +126,7 @@ export class Room extends DurableObject<Env> {
 
   // --- Actions ----------------------------------------------------------------
 
-  private async hello(ws: WebSocket, att: Attachment | null, msg: { code: string; create?: "easy" | "hard" }): Promise<void> {
+  private async hello(ws: WebSocket, att: Attachment | null, msg: { code: string; create?: "easy" | "hard"; bestOf?: 1 | 3 }): Promise<void> {
     if (att?.seat !== undefined) return this.reject(ws, "bad_message"); // one hello per connection
     const player = await playerForCode(this.env.DB, msg.code);
     if (!player) return this.reject(ws, "unauthorized");
@@ -136,7 +136,7 @@ export class Room extends DurableObject<Env> {
     const room = att?.room ?? "";
     if (!this.core) {
       if (!msg.create) return this.reject(ws, "no_room");
-      this.core = new RoomCore(newRoom(room, msg.create, now));
+      this.core = new RoomCore(newRoom(room, msg.create, now, null, undefined, msg.bestOf ?? 1));
     } else if (msg.create) {
       return this.reject(ws, "room_exists");
     }
@@ -252,7 +252,8 @@ export class Room extends DurableObject<Env> {
 
   /** Count a game starting, split by how the players met. */
   private async countStarts(out: Out[]): Promise<void> {
-    if (!out.some((o) => o.msg.t === "start")) return;
+    // Count matches, not the later rounds of a best-of-3.
+    if (!out.some((o) => o.msg.t === "start" && o.msg.match.round === 1)) return;
     try {
       const rec = this.core?.rec;
       const how = !rec?.reserved ? "friend" : rec.kind === "challenge" ? "challenge" : "quick";

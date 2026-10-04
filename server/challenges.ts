@@ -21,7 +21,7 @@ const RECENT_DAYS = 30;
 const RECENT_COUNT = 5;
 
 /** Opens a room reserved for two players. False if that code is taken. */
-export type OpenRoom = (code: string, table: "easy" | "hard", players: [string, string]) => Promise<boolean>;
+export type OpenRoom = (code: string, table: "easy" | "hard", players: [string, string], bestOf: 1 | 3) => Promise<boolean>;
 
 const json = (body: unknown, status = 200): Response => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 const fail = (status: number, error: string): Response => json({ error }, status);
@@ -111,8 +111,9 @@ export async function handleChallenges(
 
   // POST /api/challenges {to: nickname, table} → a new challenge (or the one already open to them)
   if (pathname === "/api/challenges" && method === "POST") {
-    const body = (await request.json().catch(() => null)) as { to?: unknown; table?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as { to?: unknown; table?: unknown; bestOf?: unknown } | null;
     const table = body?.table === "hard" ? "hard" : "easy";
+    const bestOf = body?.bestOf === 3 ? 3 : 1;
     if (typeof body?.to !== "string" || body.to.length > 32) return fail(400, "unknown_player");
     const them = await db.prepare("SELECT id, nickname, rating FROM players WHERE nickname = ?1").bind(body.to).first<Pick<Player, "id" | "nickname" | "rating">>();
     if (!them) return fail(404, "unknown_player");
@@ -142,7 +143,7 @@ export async function handleChallenges(
     let room: string | null = null;
     for (let attempt = 0; attempt < 3 && !room; attempt++) {
       const code = newRoomCode();
-      if (await openRoom(code, table, [me.id, them.id])) room = code;
+      if (await openRoom(code, table, [me.id, them.id], bestOf)) room = code;
     }
     if (!room) return fail(503, "no_room");
 
