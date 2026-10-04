@@ -7,6 +7,7 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Difficulty } from "../shared/constants";
 import { AIM_MIN_GAP_MS, parseClientMsg, type ClientMsg, type ErrorCode, type ServerMsg } from "../shared/protocol";
+import { REACT_GAP_MS } from "../shared/reactions";
 import type { Seat } from "../shared/types";
 import { playerForCode } from "./accounts";
 import { recordResult } from "./ratings";
@@ -34,6 +35,7 @@ export class Room extends DurableObject<Env> {
   private core: RoomCore | null = null;
   /** When each seat's last aim update was passed on. In memory only: losing it on hibernation is harmless. */
   private lastAim: [number, number] = [0, 0];
+  private lastReact: [number, number] = [0, 0];
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -98,6 +100,13 @@ export class Room extends DurableObject<Env> {
       case "aim":
       case "aim_end":
         return this.aim(seat, msg);
+      case "react": {
+        // Too soon after the last one: dropped quietly (the buttons wait this long anyway).
+        const now = Date.now();
+        if (now - this.lastReact[seat] < REACT_GAP_MS || !this.core) return;
+        this.lastReact[seat] = now;
+        return this.deliver(this.core.react(seat, msg.r));
+      }
     }
   }
 

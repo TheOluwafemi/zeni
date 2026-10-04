@@ -1,6 +1,7 @@
 // The messages between a player's phone and a room on the server.
 
 import type { Difficulty } from "./constants";
+import { isReactionId, type ReactionId } from "./reactions";
 import type { GameState, Seat, Shot, ShotOutcome } from "./types";
 
 /** Longest message the server will look at. Real messages are well under 200 bytes. */
@@ -53,7 +54,9 @@ export type ClientMsg =
   /** Live aim while lining up a shot, so the opponent can watch. Relayed, never simulated or stored. */
   | { t: "aim"; seq: number; coinId: number; angle: number; power: number }
   /** Stopped aiming without shooting (a shot ends the aim on its own). */
-  | { t: "aim_end"; seq: number };
+  | { t: "aim_end"; seq: number }
+  /** A preset reaction ("Nice shot!", 👏…) for the other player. */
+  | { t: "react"; r: ReactionId };
 
 /** How often a phone sends its aim while dragging. */
 export const AIM_SEND_MS = 125;
@@ -87,6 +90,7 @@ export type ServerMsg =
   /** The other player's live aim. */
   | { t: "aim"; by: Seat; coinId: number; angle: number; power: number }
   | { t: "aim_end"; by: Seat }
+  | { t: "react"; by: Seat; r: ReactionId }
   | { t: "error"; error: ErrorCode };
 
 export type ErrorCode =
@@ -170,6 +174,8 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
     case "aim_end":
       if (!Number.isInteger(o.seq)) return null;
       return { t: "aim_end", seq: o.seq as number };
+    case "react":
+      return isReactionId(o.r) ? { t: "react", r: o.r } : null;
     default:
       return null;
   }

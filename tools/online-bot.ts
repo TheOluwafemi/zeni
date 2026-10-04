@@ -45,6 +45,8 @@ export class Bot {
   thinkMs = 15;
   /** Send live aim while thinking, as a phone does. */
   showAim = false;
+  /** Answer a reaction with applause, to try reactions by hand. */
+  reactBack = false;
   private sentFor = -1;
   private rng: () => number;
 
@@ -85,6 +87,7 @@ export class Bot {
     else if (m.t === "shot" || m.t === "turn") this.state = m.state;
     else if (m.t === "over") this.over = m.over;
     if (m.t === "start") this.over = null;
+    if (m.t === "react" && this.reactBack) setTimeout(() => this.send({ t: "react", r: "clap" }), 700);
     void this.maybePlay();
   }
 

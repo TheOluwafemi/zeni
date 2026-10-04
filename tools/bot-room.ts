@@ -38,6 +38,7 @@ const account = await register(srv, nickname);
 const bot = new Bot(srv, nickname, account.code, Date.now() & 0xffff);
 bot.thinkMs = Number(args.think);
 bot.showAim = true;
+bot.reactBack = true;
 
 let room: string;
 if (args.queue) {

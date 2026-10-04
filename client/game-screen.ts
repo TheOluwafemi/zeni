@@ -9,6 +9,7 @@ import type { GameState, Seat } from "../shared/types";
 import { AimThrottle } from "./aim-relay";
 import { sound } from "./audio";
 import { RoomClient, type Fatal, type Link } from "./net";
+import { onReact, showBubble, showReactions } from "./reactions";
 import { tierBadge } from "./tier";
 import { ComputerPlayer } from "./game/computer";
 import { LocalGame, type Resolved } from "./game/local-game";
@@ -108,6 +109,7 @@ const goesFirst = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "go" : "goes"} 
 /** Redraw both player bars. A newly kept coin for `awaiting` stays hidden until its flight lands. */
 function updateBars(opts: { thinking?: boolean; awaiting?: Seat } = {}): void {
   const { scores, turn, status } = game.state;
+  showReactions(isOnline() && !!online && online.status !== "waiting" && !!online.players[0] && !!online.players[1]);
   bars.forEach((bar, i) => {
     const seat = i as Seat;
     bar.classList.toggle("active", status === "playing" && turn === seat);
@@ -513,6 +515,9 @@ function onServer(msg: ServerMsg): void {
       game.setRemoteAim(null);
       dirty = true;
       break;
+    case "react":
+      showBubble(bars[msg.by], msg.r, true);
+      break;
     case "rematch":
       o.rematch = msg.votes;
       renderRematch();
@@ -641,6 +646,12 @@ async function playComputerTurn(): Promise<void> {
   if (token !== gameToken) return;
   game.fire(shot);
 }
+
+onReact((r) => {
+  if (!online) return;
+  online.client.send({ t: "react", r });
+  showBubble(bars[online.seat], r, false);
+});
 
 // --- Input ----------------------------------------------------------------
 

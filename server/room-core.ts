@@ -19,6 +19,7 @@ import {
   type Players,
   type ServerMsg,
 } from "../shared/protocol";
+import type { ReactionId } from "../shared/reactions";
 import { randomSeed } from "../shared/rng";
 import { legalShot, newGame, other, resolveShot } from "../shared/rules";
 import type { GameState, Seat } from "../shared/types";
@@ -242,6 +243,13 @@ export class RoomCore {
     if (!legalShot(state, seat, { coinId: msg.coinId, angle: msg.angle, power: 1 })) return [];
     const round = (x: number) => Math.round(x * 1000) / 1000; // plenty for drawing, and keeps messages small
     return [{ to, msg: { t: "aim", by: seat, coinId: msg.coinId, angle: round(msg.angle), power: round(power) } }];
+  }
+
+  /** A reaction for the other player: during a game, or after it while both are still looking at the result. */
+  react(seat: Seat, r: ReactionId): Out[] {
+    const { rec } = this;
+    if (rec.status === "waiting" || !rec.seats[0] || !rec.seats[1]) return [];
+    return [{ to: other(seat), msg: { t: "react", by: seat, r } }];
   }
 
   resign(seat: Seat, now: number): Step | Failure {

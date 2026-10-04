@@ -125,6 +125,16 @@ async function main(): Promise<void> {
   check("aiming out of turn is ignored, with no error", !first.inbox.slice(mine).some((m) => m.t === "aim") && !second.inbox.slice(seen).some((m) => m.t === "error"));
   check("and you don't get your own aim back", !first.inbox.slice(mine).some((m) => m.t === "aim" || m.t === "aim_end"));
 
+  console.log("\nReactions");
+  const beforeReact = [first.inbox.length, second.inbox.length];
+  second.send({ t: "react", r: "nice" });
+  const got = await first.waitFor("react", 3000, beforeReact[0]);
+  check("a reaction reaches the other player", got.by === second.seat && got.r === "nice", JSON.stringify(got));
+  second.send({ t: "react", r: "clap" }); // straight after the first: too soon
+  await sleep(300);
+  check("sending them too quickly is ignored", first.inbox.slice(beforeReact[0]).filter((m) => m.t === "react").length === 1);
+  check("and you don't get your own back", !second.inbox.slice(beforeReact[1]).some((m) => m.t === "react"));
+
   console.log("\nA game, with a dropped connection in the middle");
   ada.autoplay = bea.autoplay = true;
   void ada.maybePlay();

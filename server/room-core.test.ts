@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ANIM_GRACE_MS, MAX_TIMEOUTS, RECONNECT_MS, ROOM_IDLE_MS, TURN_MS } from "../shared/protocol";
+import { ANIM_GRACE_MS, MAX_TIMEOUTS, parseClientMsg, RECONNECT_MS, ROOM_IDLE_MS, TURN_MS } from "../shared/protocol";
 import { mulberry32 } from "../shared/rng";
 import { freeCoinIds } from "../shared/rules";
 import type { Seat } from "../shared/types";
@@ -423,5 +423,26 @@ describe("live aim", () => {
     const out = core.aim(core.rec.state!.turn, { ...aimFor(core), power: 7 });
     expect(out[0].msg).toMatchObject({ power: 1 });
     expect(JSON.stringify(core.rec)).toBe(before);
+  });
+});
+
+describe("reactions", () => {
+  test("go to the other player only, during a game and after it", () => {
+    const { core } = seated();
+    expect(core.react(0, "nice")).toEqual([{ to: 1, msg: { t: "react", by: 0, r: "nice" } }]);
+    core.resign(1, T0);
+    expect(core.react(1, "gg")).toEqual([{ to: 0, msg: { t: "react", by: 1, r: "gg" } }]);
+  });
+
+  test("aren't sent while waiting for an opponent", () => {
+    const core = setup();
+    core.join(ada, T0);
+    expect(core.react(0, "clap")).toEqual([]);
+  });
+
+  test("only the preset ones are accepted", () => {
+    expect(parseClientMsg('{"t":"react","r":"gg"}')).toEqual({ t: "react", r: "gg" });
+    expect(parseClientMsg('{"t":"react","r":"you stink"}')).toBeNull();
+    expect(parseClientMsg('{"t":"react","r":"toString"}')).toBeNull();
   });
 });

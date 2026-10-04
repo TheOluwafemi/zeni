@@ -1182,3 +1182,84 @@ button.danger:hover {
     animation: none;
   }
 }
+
+/* --- Reactions ---------------------------------------------------------------- */
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.reactions .chip {
+  min-height: 34px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.reactions .chip:disabled {
+  opacity: 0.45;
+}
+
+.bubble {
+  position: fixed;
+  z-index: 30;
+  max-width: calc(100% - 24px);
+  padding: 7px 13px;
+  border-radius: 14px;
+  background: var(--fg);
+  color: var(--gold-ink);
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  animation: bubble-in 0.2s ease-out, bubble-out 0.3s ease-in 2.3s forwards;
+}
+
+/* The other player's bubbles use their colour (the same as their live aim). */
+.bubble.theirs {
+  background: #6cc8e0;
+  color: #0f2a33;
+}
+
+.bubble::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  border: 7px solid transparent;
+}
+
+.bubble.up::after {
+  top: 100%;
+  border-top-color: var(--bubble-tail, var(--fg));
+}
+
+.bubble.down::after {
+  bottom: 100%;
+  border-bottom-color: var(--bubble-tail, var(--fg));
+}
+
+.bubble.theirs {
+  --bubble-tail: #6cc8e0;
+}
+
+/* Grows in rather than fading in, so a paused animation can't leave it invisible. */
+@keyframes bubble-in {
+  from {
+    transform: scale(0.85);
+  }
+}
+
+@keyframes bubble-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    animation: bubble-out 0.3s ease-in 2.3s forwards;
+  }
+}
