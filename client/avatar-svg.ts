@@ -88,10 +88,13 @@ function face(e: Expression): string {
   return eyes + brows + mouth + cheeks;
 }
 
-/** The avatar as an SVG string. `background` false leaves the circle clear (for the 3D cut-out). */
-export function avatarSvg(look: Look, expression: Expression = "neutral", opts: { background?: boolean; size?: number } = {}): string {
+/**
+ * The avatar as an SVG string. For the cut-out across the 3D table, `cutout` drops the round frame and
+ * background, leaving just the person.
+ */
+export function avatarSvg(look: Look, expression: Expression = "neutral", opts: { cutout?: boolean; size?: number } = {}): string {
   const id = `av${++uid}`;
-  const { background = true, size = 100 } = opts;
+  const { cutout = false, size = 100 } = opts;
   const skinShade = shade(look.skin, -0.08);
   const glasses = look.glasses
     ? `<g stroke="#20262e" stroke-width="1.6" fill="rgba(255,255,255,0.18)"><rect x="37" y="42" width="11" height="9" rx="3"/><rect x="52" y="42" width="11" height="9" rx="3"/><path d="M48 46 L52 46" fill="none"/></g>`
@@ -102,8 +105,8 @@ export function avatarSvg(look: Look, expression: Expression = "neutral", opts: 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${size}" height="${size}" aria-hidden="true">`,
     `<defs><clipPath id="${id}c"><circle cx="50" cy="50" r="50"/></clipPath>${pattern(`${id}p`, look.pattern, look.shirt, look.accent)}</defs>`,
-    `<g clip-path="url(#${id}c)">`,
-    background ? `<rect width="100" height="100" fill="#f3e3c8"/>` : "",
+    cutout ? `<g>` : `<g clip-path="url(#${id}c)">`,
+    cutout ? "" : `<rect width="100" height="100" fill="#f3e3c8"/>`,
     hairBack(look),
     // Shoulders in the shirt, with an open collar.
     `<path d="M8 104 C 10 80, 28 71, 50 71 C 72 71, 90 80, 92 104 Z" fill="url(#${id}p)"/>`,

@@ -159,9 +159,10 @@ function renderAvatars(): void {
     slot.dataset.key = key;
     slot.innerHTML = look ? avatarSvg(look, faces[seat], { size: 36 }) : "";
   });
-  // Their colour is their shirt: their aim line and their bubbles.
+  // Their colour is their shirt: their aim line and their bubbles. In 3D they sit across the table.
   const theirSeat = isOnline() && online ? other(online.seat) : vsComputer() ? COMPUTER_SEAT : null;
   const theirs = theirSeat === null ? null : lookFor(theirSeat);
+  view.setOpponent(theirs, theirSeat === null ? "neutral" : faces[theirSeat], theirSeat !== null && game.state.status === "playing" && game.state.turn === theirSeat);
   const colour = theirs?.shirt ?? "#6cc8e0";
   setOpponentColor(colour);
   document.documentElement.style.setProperty("--their", colour);
@@ -206,6 +207,39 @@ function updateBars(opts: { thinking?: boolean; awaiting?: Seat } = {}): void {
 
 function say(text: string): void {
   message.textContent = text;
+}
+
+// --- Toasts ------------------------------------------------------------------
+
+const toastEl = $("#toast");
+let toastTimer = 0;
+
+/** A short note at the top of the table: "Clean hit!", "Off the table: Kenta takes it". */
+function toast(text: string, good = false): void {
+  window.clearTimeout(toastTimer);
+  toastEl.textContent = text;
+  toastEl.classList.toggle("good", good);
+  // Restart the entrance animation.
+  toastEl.hidden = true;
+  void toastEl.offsetWidth;
+  toastEl.hidden = false;
+  toastTimer = window.setTimeout(() => (toastEl.hidden = true), 1800);
+}
+
+/** The toast for a shot, in a few words. */
+function shotToast(shooter: Seat, outcome: Resolved["outcome"]): void {
+  const them = other(shooter);
+  const fell = outcome.fallen.length;
+  const yourTurnNext = !outcome.again && youSeat() !== null && isYou(them);
+  const tail = yourTurnNext ? " · Your turn" : "";
+  if (outcome.captured !== null) return toast(`Clean hit!${outcome.again ? " Go again" : ""}`, true);
+  if (fell > 0) {
+    const taker = isYou(them) ? "you take" : `${name(them)} takes`;
+    return toast(`Off the table: ${taker} ${fell === 1 ? "it" : "them"}${tail}`);
+  }
+  if (outcome.touched === 0) return toast(`Missed${tail}`);
+  const count = ["", "", "Two", "Three", "Four"][outcome.touched] ?? String(outcome.touched);
+  toast(`${count} coins touched${tail}`);
 }
 
 /** Fly a kept coin from the table into the player's tray. */
@@ -308,6 +342,7 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
   const token = gameToken;
   const them = other(shooter);
   react(shooter, outcome.captured !== null ? "pleased" : "dismayed");
+  if (game.state.status !== "over") shotToast(shooter, outcome);
   updateBars({ awaiting: kept ? shooter : undefined });
   const landed = kept ? flyToTray(kept, shooter) : Promise.resolve();
   if (kept) {
@@ -816,6 +851,7 @@ export async function load3D(): Promise<void> {
     table3d = t;
     view = t;
     view.resize();
+    updateBars(); // tells the new view who sits across the table
     viewToggle.hidden = false;
     renderViewToggle();
     dirty = true;
