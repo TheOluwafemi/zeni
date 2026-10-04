@@ -6,7 +6,9 @@ import { sound } from "./audio";
 import { BUILD, installErrorReporting, ping, pingOpenOnce, setScreen } from "./diagnostics";
 import { openFeedback } from "./feedback";
 import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
-import { load3D, start, startOnline, setOnExit, type Opponent } from "./game-screen";
+import { load3D, setPlace, start, startOnline, setOnExit, type Opponent } from "./game-screen";
+import { PLACES, placeFor, unlocked } from "../shared/places";
+import { TIERS } from "../shared/tiers";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
 import { setupInstall } from "./install";
 import { openLeaderboard } from "./leaderboard";
@@ -99,6 +101,54 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="table
   b.textContent = `${d === "easy" ? "Easy" : "Hard"} · ${CUPS[d]} cups`;
 }
 bindSegment("match", match, (v) => save("zeni.match", (match = v as "1" | "3")));
+
+// --- Places: where the table stands. Reaching a tier opens its place. ----------
+
+const placePicker = $("#place-picker");
+const placeNote = $("#place-note");
+let pickedPlace: string | null = (() => {
+  try {
+    return localStorage.getItem("zeni.place");
+  } catch {
+    return null;
+  }
+})();
+
+function renderPlaces(): void {
+  const rating = currentPlayer()?.rating ?? null;
+  const current = placeFor(pickedPlace, rating);
+  setPlace(current.id);
+  placePicker.replaceChildren(
+    ...PLACES.map((p) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      const open = unlocked(p, rating);
+      const tier = TIERS.find((t) => t.id === p.tier)!;
+      b.textContent = open ? p.name : `${p.name} · ${tier.name}`;
+      b.disabled = !open;
+      b.classList.toggle("current", p.id === current.id);
+      b.setAttribute("aria-checked", String(p.id === current.id));
+      if (!open) b.setAttribute("aria-label", `${p.name}, opens when you reach ${tier.name}`);
+      b.addEventListener("click", () => {
+        pickedPlace = p.id;
+        try {
+          localStorage.setItem("zeni.place", p.id);
+        } catch {
+          // Not remembered in private mode.
+        }
+        renderPlaces();
+      });
+      return b;
+    }),
+  );
+  const locked = PLACES.find((p) => !unlocked(p, rating));
+  placeNote.textContent = locked
+    ? `Win online games to reach ${TIERS.find((t) => t.id === locked.tier)!.name} and open the ${locked.name.toLowerCase()}.`
+    : "";
+}
+renderPlaces();
+window.addEventListener(PLAYER_READY, renderPlaces);
 bindSegment("table", table, (v) => {
   save("zeni.table", (table = v as Difficulty));
   renderPresence();

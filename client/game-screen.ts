@@ -20,6 +20,7 @@ import { LocalGame, type Resolved } from "./game/local-game";
 import { setOpponentColor } from "./game/overlay";
 import { FlatView, type TableView } from "./game/table-view";
 import type { Table3D } from "./game/table-3d";
+import type { PlaceId } from "../shared/places";
 import { mountTuning } from "./tune";
 
 /** Who sits in seat 1: a friend on the same device, the computer at some level, or someone online. */
@@ -917,6 +918,14 @@ wrap.addEventListener("pointercancel", (e) => endAim(e, false));
 // --- The 3D table ---------------------------------------------------------
 
 let table3d: Table3D | null = null;
+let placeId: PlaceId = "kitchen";
+
+/** Where the 3D table stands. Remembered until the next call; applied when the 3D view loads. */
+export function setPlace(id: PlaceId): void {
+  placeId = id;
+  table3d?.setPlace(id);
+  dirty = true;
+}
 
 /** Swap in the 3D table once it has loaded. Stays flat if this device can't show 3D. */
 export async function load3D(): Promise<void> {
@@ -924,6 +933,7 @@ export async function load3D(): Promise<void> {
   try {
     const { Table3D } = await import("./game/table-3d");
     const t = new Table3D(wrap);
+    t.setPlace(placeId);
     view.dispose();
     canvas.hidden = true;
     table3d = t;
