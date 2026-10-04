@@ -7,6 +7,7 @@
     "build": "npm run typecheck && vite build",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",
+    "backup": "mkdir -p docs/backups && chmod 700 docs/backups && wrangler d1 export zeni --remote --output=docs/backups/zeni-$(date -u +%Y-%m-%dT%H%MZ).sql && chmod 600 docs/backups/*.sql",
     "deploy:staging": "npm run typecheck && CLOUDFLARE_ENV=staging SITE_URL=https://zeni-staging.oluwafemicodes.workers.dev vite build && wrangler deploy",
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.server.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
