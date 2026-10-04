@@ -57,7 +57,7 @@ function show(screen: "home" | "game", detail = ""): void {
   if (screen === "home") {
     renderDaily();
     void refreshPlayer(); // ratings change after online games
-    void refreshChallenges();
+    void refreshChallenges(true); // Home opened: challenges and recent opponents
   }
 }
 

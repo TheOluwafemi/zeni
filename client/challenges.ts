@@ -3,6 +3,7 @@
 
 import type { Difficulty } from "../shared/constants";
 import { currentPlayer, PLAYER_READY } from "./account";
+import { inUse, onReturn } from "./activity";
 import { api, ApiError } from "./api";
 import { tierBadge } from "./tier";
 
@@ -23,7 +24,8 @@ interface Opponent extends Who {
   record: { wins: number; losses: number; draws: number };
 }
 
-const REFRESH_MS = 20_000;
+/** Challenges are checked this often while Home is open and in use (recent opponents only when Home opens). */
+const REFRESH_MS = 60_000;
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const box = $("#challenges");
 const recentBox = $("#recent");
@@ -163,18 +165,23 @@ function render(incoming: Challenge[], outgoing: Challenge[], opponents: Opponen
 }
 
 let inFlight = false;
-export async function refresh(): Promise<void> {
+let opponentsCache: Opponent[] | null = null;
+
+/** Check challenges (and, with `full`, recent opponents too). `full` also runs when the page is idle. */
+export async function refresh(full = false): Promise<void> {
   if (!currentPlayer()) {
     box.hidden = recentBox.hidden = true;
     return;
   }
-  if (inFlight || document.visibilityState === "hidden" || !homeVisible()) return;
+  if (inFlight || !homeVisible() || (!full && !inUse())) return;
   inFlight = true;
   try {
     const [lists, recent] = await Promise.all([
       api<{ incoming: Challenge[]; outgoing: Challenge[] }>("/api/me/challenges", { auth: true }),
-      api<{ opponents: Opponent[] }>("/api/me/opponents", { auth: true }),
+      // Recent opponents only change after a game, so fetch them when Home opens, not on every check.
+      full || !opponentsCache ? api<{ opponents: Opponent[] }>("/api/me/opponents", { auth: true }) : Promise.resolve({ opponents: opponentsCache }),
     ]);
+    opponentsCache = recent.opponents;
     render(lists.incoming, lists.outgoing, recent.opponents);
   } catch {
     // Offline or signed out: keep what's shown.
@@ -193,8 +200,8 @@ export function startChallenges(opts: {
   homeVisible = opts.homeVisible;
   tableNow = opts.table;
   bestOfNow = opts.bestOf;
-  void refresh();
+  void refresh(true);
   window.setInterval(() => void refresh(), REFRESH_MS);
-  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && void refresh());
-  window.addEventListener(PLAYER_READY, () => void refresh());
+  onReturn(() => void refresh(true));
+  window.addEventListener(PLAYER_READY, () => void refresh(true));
 }
