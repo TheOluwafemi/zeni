@@ -11,6 +11,8 @@ import { parseQueueMsg, type ErrorCode, type QueueServerMsg } from "../shared/pr
 import { newRoomCode } from "../shared/room-code";
 import { playerForCode } from "./accounts";
 import { nextRetry, pickPairs, type Waiting } from "./matchmaking";
+import { markActive } from "./stats";
+import { logServerError } from "./telemetry";
 
 interface Attachment {
   table: Difficulty;
@@ -56,6 +58,7 @@ export class Matchmaker extends DurableObject<Env> {
       }
     }
 
+    markActive(this.env.DB, player.id).catch(() => {}); // anonymous daily player count; never blocks queueing
     ws.serializeAttachment({ ...att, queued: { playerId: player.id, rating: player.rating, since: Date.now() } } satisfies Attachment);
     this.send(ws, { t: "queued", waiting: this.waiting().length });
     await this.match();
@@ -113,6 +116,7 @@ export class Matchmaker extends DurableObject<Env> {
         return;
       } catch (e) {
         console.error("could not open a room", e);
+        await logServerError(this.env.DB, "matchmaker", e);
       }
     }
     // Couldn't open a room: put both back in the queue, keeping their place.

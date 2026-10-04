@@ -144,6 +144,53 @@ describe("renaming", () => {
   });
 });
 
+describe("deleting a player", () => {
+  async function playedGame() {
+    const ada = await register("Ada");
+    const bea = await register("Bea");
+    await db
+      .prepare("INSERT INTO matches (id, p0, p1, score0, score1, winner, reason, created_at) VALUES ('m1', ?1, ?2, 5, 3, ?1, 'normal', 1)")
+      .bind(ada.body.playerId, bea.body.playerId)
+      .run();
+    await db.prepare("INSERT INTO feedback (at, message, player_id, nickname) VALUES (1, 'nice game', ?1, 'Ada')").bind(ada.body.playerId).run();
+    await db.prepare("INSERT INTO daily_active (day, player_id) VALUES ('2026-10-03', ?1)").bind(ada.body.playerId).run();
+    return { ada, bea };
+  }
+
+  test("removes the player, frees the nickname, and the old code stops working", async () => {
+    const { ada } = await playedGame();
+    const res = await call("/api/me", { method: "DELETE", code: ada.body.code });
+    expect(res.status).toBe(200);
+
+    expect((await call("/api/me", { code: ada.body.code })).status).toBe(401);
+    expect((await restore(ada.body.code)).status).toBe(404);
+    expect((await call("/api/nickname/Ada")).body).toEqual({ available: true });
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM players").bind().first()).toEqual({ n: 1 });
+  });
+
+  test("keeps finished games but without the name, so the totals still add up", async () => {
+    const { ada, bea } = await playedGame();
+    await call("/api/me", { method: "DELETE", code: ada.body.code });
+    const match = await db.prepare("SELECT p0, p1, winner, score0, score1 FROM matches").bind().first();
+    expect(match).toEqual({ p0: "deleted", p1: bea.body.playerId, winner: "deleted", score0: 5, score1: 3 });
+  });
+
+  test("keeps feedback text but unlinks it from the person, and drops their activity trail", async () => {
+    const { ada } = await playedGame();
+    await call("/api/me", { method: "DELETE", code: ada.body.code });
+    expect(await db.prepare("SELECT message, player_id, nickname FROM feedback").bind().first()).toEqual({ message: "nice game", player_id: null, nickname: null });
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM daily_active").bind().first()).toEqual({ n: 0 });
+  });
+
+  test("never touches anyone else, and needs the player's own code", async () => {
+    const { bea } = await playedGame();
+    expect((await call("/api/me", { method: "DELETE" })).status).toBe(401);
+    expect((await call("/api/me", { method: "DELETE", code: "ZENI-AAAA-BBBB-CCCC-DDDD" })).status).toBe(401);
+    expect((await call("/api/me", { code: bea.body.code })).status).toBe(200);
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM players").bind().first()).toEqual({ n: 2 });
+  });
+});
+
 describe("leaderboard position", () => {
   test("counts players with games who out-rate you", async () => {
     const a = await register("Ada");

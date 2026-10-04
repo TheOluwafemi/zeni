@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1c120b" />
+    <title>Privacy · Zeni</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --bg: #1c120b;
+        --fg: #f3e6d3;
+        --muted: #b39a7e;
+        --gold: #e8b85a;
+        --line: rgba(243, 230, 211, 0.14);
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: max(24px, env(safe-area-inset-top)) 20px 64px;
+      }
+      h1 {
+        margin: 8px 0 4px;
+        font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", Georgia, serif;
+        font-size: 2.2rem;
+        font-weight: 600;
+      }
+      h2 {
+        margin: 36px 0 8px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        font-size: 1.15rem;
+      }
+      p,
+      li {
+        color: #e2d3bd;
+      }
+      li {
+        margin: 6px 0;
+      }
+      a {
+        color: var(--gold);
+      }
+      .lede {
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+      .back {
+        display: inline-block;
+        margin-bottom: 8px;
+        color: var(--muted);
+      }
+      code {
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.07);
+        font-size: 0.92em;
+      }
+      .updated {
+        margin-top: 40px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="back" href="/">‹ Back to Zeni</a>
+      <h1>Privacy</h1>
+      <p class="lede">
+        Zeni is a small, free game. We collect as little as we can, and we never ask for your email, a password or your real name.
+      </p>
+
+      <h2>What we keep</h2>
+      <ul>
+        <li>
+          <strong>Your player.</strong> The nickname you chose, your rating and win/loss record, and a scrambled (hashed) copy of your
+          player code. We can't read your code and we can't recover it. If you lose it, that player is gone.
+        </li>
+        <li>
+          <strong>Online games.</strong> Who played, the score, how it ended and when. This is how ratings and the leaderboard work. Your
+          nickname, rating and place on the leaderboard are public.
+        </li>
+        <li>
+          <strong>Feedback you send.</strong> Your message, the reply address if you typed one, your nickname if you were signed in, the app
+          version and your browser's type. Don't put anything in a message that you wouldn't want us to read.
+        </li>
+        <li>
+          <strong>Crash reports.</strong> When the app hits an error it may send the error text, which screen you were on, the app version
+          and your browser's type. No names.
+        </li>
+        <li>
+          <strong>Anonymous counts.</strong> Numbers like "how many times was the app opened today" and "how many players were active". They
+          are totals with no identifier attached.
+        </li>
+      </ul>
+
+      <h2>What we don't</h2>
+      <ul>
+        <li>No email addresses, passwords, phone numbers or locations.</li>
+        <li>No advertising, no trackers, no analytics scripts from other companies, and no cookies.</li>
+        <li>
+          We don't link your games to your device or browsing. Your internet address is used only for a short-lived limit on how fast
+          one address can sign up or send messages (so the game can't be flooded), and those counters are deleted by a daily cleanup.
+        </li>
+      </ul>
+
+      <h2>On your device</h2>
+      <p>
+        Zeni stores your player code and your settings (sound, computer level, table) in your browser's local storage so you stay signed in. The
+        installed app also keeps a copy of itself so it can run offline. Clearing your browser's data for this site signs you out; you can get
+        back in with your player code.
+      </p>
+
+      <h2>Deleting your player</h2>
+      <p>
+        In the app, open <strong>Settings</strong> and choose <strong>Delete my player</strong>. That removes your nickname, rating and code
+        from our server straight away. Games you played stay in the totals so other players' records still add up, but your name is removed
+        from them, and any feedback you sent is kept without your name attached.
+      </p>
+
+      <h2>Who runs this</h2>
+      <p>
+        Zeni runs on Cloudflare, which handles the traffic and stores the data. Cloudflare may keep basic technical logs as described in its own
+        policy. For any privacy question, or to ask us to delete something we can't remove from inside the app, use <strong>Send feedback</strong>
+        on the home screen.
+      </p>
+
+      <p class="updated">Last updated 4 October 2026. If this changes in a way that matters, the date above changes too.</p>
+    </main>
+  </body>
+</html>

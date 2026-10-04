@@ -246,6 +246,7 @@ $("#open-settings").addEventListener("click", () => {
   setCodeVisible(false);
   setStatus(renameStatus, "");
   setStatus(codeStatus, "");
+  setStatus($("#delete-status"), "");
   openSheet($("#sheet-settings"));
 });
 
@@ -275,6 +276,22 @@ $("#code-rotate").addEventListener("click", async () => {
     setStatus(codeStatus, "New code ready. Save it. The old one no longer works.", "ok");
   } catch (err) {
     setStatus(codeStatus, explain(err), "bad");
+  }
+});
+
+$("#delete-player").addEventListener("click", async () => {
+  if (!me) return;
+  const typed = prompt(`This permanently deletes ${me.nickname} and can't be undone.\n\nType the nickname to confirm:`);
+  if (typed === null) return;
+  if (typed.trim().toLowerCase() !== me.nickname.toLowerCase()) return setStatus($("#delete-status"), "That didn't match, so nothing was deleted.", "bad");
+  try {
+    await api("/api/me", { method: "DELETE", auth: true });
+    identity.clear();
+    me = null;
+    renderCard();
+    closeSheets();
+  } catch (err) {
+    setStatus($("#delete-status"), explain(err), "bad");
   }
 });
 

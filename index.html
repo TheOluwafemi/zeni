@@ -4,7 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1c120b" />
-    <meta name="description" content="Zeni: flick coins across a round table. Hit exactly one coin to keep it." />
+    <meta name="description" content="Zeni: flick coins across a round table. Hit exactly one coin to keep it. Play a friend, a stranger or the computer. Free, no email needed." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Zeni" />
+    <meta property="og:title" content="Zeni: flick the coins" />
+    <meta property="og:description" content="A coin-flicking game for two. Hit exactly one coin to keep it, and don't knock any off the table. Play a friend, a stranger or the computer. Free." />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:image" content="%SITE_URL%/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A gold Edo-era coin on a walnut table next to the word Zeni" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Zeni: flick the coins" />
+    <meta name="twitter:description" content="A coin-flicking game for two. Free, and no sign-up email." />
+    <meta name="twitter:image" content="%SITE_URL%/og.png" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -89,6 +102,14 @@
           <p>To install Zeni on your iPhone or iPad, tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.</p>
           <button type="button" id="ios-hint-dismiss" class="ghost">Got it</button>
         </div>
+
+        <footer class="home-links">
+          <button type="button" class="link" id="open-feedback">Send feedback</button>
+          <span aria-hidden="true">·</span>
+          <a href="/privacy.html">Privacy</a>
+          <span aria-hidden="true">·</span>
+          <span id="build" class="muted"></span>
+        </footer>
       </div>
     </section>
 
@@ -255,7 +276,39 @@
           <p id="code-status" class="status" aria-live="polite"></p>
         </div>
 
+        <div class="block danger-zone">
+          <span class="label">Delete my player</span>
+          <p class="muted small">Erases your nickname, rating and code from our server. Games you played stay in the totals, but without your name. This can't be undone.</p>
+          <button type="button" class="wide danger" id="delete-player">Delete my player…</button>
+          <p id="delete-status" class="status" aria-live="polite"></p>
+        </div>
+
         <button type="button" class="primary wide" id="settings-close">Done</button>
+      </div>
+    </div>
+
+    <!-- Send feedback -->
+    <div id="sheet-feedback" class="overlay" hidden>
+      <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
+        <form id="feedback-form" novalidate>
+          <h3 id="feedback-title" class="title">Send feedback</h3>
+          <p class="muted">A bug, an idea, anything that felt off. We read every message.</p>
+          <label for="feedback-message" class="visually-hidden">Your message</label>
+          <textarea id="feedback-message" class="field area" maxlength="2000" rows="5" placeholder="What happened, or what would make it better?"></textarea>
+          <label for="feedback-contact" class="label">Reply to (optional)</label>
+          <input id="feedback-contact" class="field" maxlength="120" autocomplete="off" placeholder="Email or @handle, only if you'd like a reply" />
+          <p id="feedback-attached" class="muted small"></p>
+          <p id="feedback-status" class="status" aria-live="polite"></p>
+          <div class="row">
+            <button type="button" class="ghost" id="feedback-cancel">Cancel</button>
+            <button type="submit" class="primary" id="feedback-send" disabled>Send</button>
+          </div>
+        </form>
+        <div id="feedback-thanks" hidden>
+          <h3 class="title">Thank you</h3>
+          <p class="muted">Your message is on its way to us.</p>
+          <button type="button" class="primary wide" id="feedback-done">Done</button>
+        </div>
       </div>
     </div>
 

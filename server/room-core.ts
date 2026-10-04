@@ -49,6 +49,8 @@ export interface RoomRec {
   lastActivity: number;
   /** For Quick Match rooms: the two players it was made for. Nobody else may take a seat. */
   reserved?: [string, string] | null;
+  /** When the current (or last) game began, for match length statistics. */
+  gameStartedAt?: number | null;
 }
 
 /** A message and who it's for. */
@@ -183,6 +185,7 @@ export class RoomCore {
     rec.state = newGame(this.newSeed(), rec.table, first);
     rec.status = "playing";
     rec.firstSeat = rec.state.turn;
+    rec.gameStartedAt = now;
     rec.over = null;
     rec.rematch = [false, false];
     rec.deadline = now + TURN_MS + ANIM_GRACE_MS;

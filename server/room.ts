@@ -10,6 +10,8 @@ import { parseClientMsg, type ErrorCode, type ServerMsg } from "../shared/protoc
 import type { Seat } from "../shared/types";
 import { playerForCode } from "./accounts";
 import { recordResult } from "./ratings";
+import { bump, markActive } from "./stats";
+import { logServerError } from "./telemetry";
 import { isFailure, newRoom, RoomCore, type Out, type RoomRec, type Step } from "./room-core";
 
 /** What each socket remembers across hibernation. */
@@ -126,6 +128,7 @@ export class Room extends DurableObject<Env> {
 
     const joined = this.core.join({ id: player.id, nickname: player.nickname, rating: player.rating }, now);
     if (isFailure(joined)) return this.reject(ws, joined.error);
+    await this.recordPresence(player.id, joined.step.out);
 
     ws.serializeAttachment({ room, seat: joined.seat, playerId: player.id } satisfies Attachment);
     await this.save();
@@ -173,6 +176,7 @@ export class Room extends DurableObject<Env> {
     void now;
     await this.save();
     this.deliver(step.out);
+    await this.countStarts(step.out);
     if (step.finished) await this.settle();
     if (step.expired) return this.destroy();
     await this.reschedule();
@@ -187,7 +191,16 @@ export class Room extends DurableObject<Env> {
     if (!a || !b) return;
 
     try {
-      const ratings = await recordResult(this.env.DB, [a.playerId, b.playerId], over.scores, over.winner, over.reason);
+      const ratings = await recordResult(
+        this.env.DB,
+        [a.playerId, b.playerId],
+        over.scores,
+        over.winner,
+        over.reason,
+        Date.now(),
+        crypto.randomUUID(),
+        core.rec.gameStartedAt ?? null,
+      );
       if (ratings) {
         over.ratings = ratings;
         a.rating = ratings.after[0];
@@ -195,12 +208,33 @@ export class Room extends DurableObject<Env> {
       }
     } catch (e) {
       console.error("could not record result", e); // the game still ends; the ratings just don't move
+      await logServerError(this.env.DB, "room", e);
     }
     await this.save();
     this.deliver([
       { to: "all", msg: { t: "over", over } },
       { to: "all", msg: { t: "players", players: core.players() } },
     ]);
+  }
+
+  /** Anonymous bookkeeping for the launch numbers. It must never get in the way of the game. */
+  private async recordPresence(playerId: string, out: Out[]): Promise<void> {
+    try {
+      await markActive(this.env.DB, playerId);
+      await this.countStarts(out);
+    } catch (e) {
+      console.error("could not record presence", e);
+    }
+  }
+
+  /** Count a game starting, split by how the players met. */
+  private async countStarts(out: Out[]): Promise<void> {
+    if (!out.some((o) => o.msg.t === "start")) return;
+    try {
+      await bump(this.env.DB, this.core?.rec.reserved ? "game_start_quick" : "game_start_friend");
+    } catch (e) {
+      console.error("could not count a game start", e);
+    }
   }
 
   private async save(): Promise<void> {

@@ -29,6 +29,10 @@
     // The Quick Match queue, one per table. Its state lives in its sockets, but the class still needs a backend.
     "Matchmaker": { "type": "durable-object", "storage": "sqlite" }
   },
+  // A daily cleanup of short-lived records (see server/maintenance.ts), at 03:17 UTC.
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
   "observability": {
     "enabled": true
   }

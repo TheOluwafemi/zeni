@@ -22,6 +22,7 @@ export async function recordResult(
   reason: OverReason,
   now = Date.now(),
   matchId: string = crypto.randomUUID(),
+  startedAt: number | null = null,
 ): Promise<RatingResult | null> {
   const read = (id: string) => db.prepare("SELECT rating FROM players WHERE id = ?1").bind(id).first<{ rating: number }>();
   const [a, b] = await Promise.all([read(players[0]), read(players[1])]);
@@ -44,8 +45,8 @@ export async function recordResult(
     update(players[0], delta, winner === 0 ? 1 : 0, winner === 1 ? 1 : 0, draw),
     update(players[1], -delta, winner === 1 ? 1 : 0, winner === 0 ? 1 : 0, draw),
     db
-      .prepare("INSERT INTO matches (id, p0, p1, score0, score1, winner, reason, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
-      .bind(matchId, players[0], players[1], scores[0], scores[1], winner === "draw" ? null : players[winner], reason, now),
+      .prepare("INSERT INTO matches (id, p0, p1, score0, score1, winner, reason, created_at, started_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")
+      .bind(matchId, players[0], players[1], scores[0], scores[1], winner === "draw" ? null : players[winner], reason, now, startedAt),
   ]);
 
   return { before: [a.rating, b.rating], after: [a.rating + delta, b.rating - delta] };

@@ -4,6 +4,7 @@
 // The player code is the secret. The device stores it and sends it as `Authorization: Bearer <code>`.
 
 import { formatCode, hashCode, newCode, normalizeCode, validateNickname } from "./auth";
+import { markActive } from "./stats";
 
 /** The slice of D1 this file uses. Declared here so tests can supply a SQLite stand-in. */
 export interface Db {
@@ -166,12 +167,26 @@ export async function handleAccounts(
 
   // GET /api/me
   if (pathname === "/api/me" && method === "GET") {
+    waitUntil(markActive(db, me.id).catch(() => {})); // counts the player as active today
     // Position on the leaderboard: players with games, ranked by rating. Null until you've played.
     const position =
       me.games > 0
         ? ((await db.prepare("SELECT COUNT(*) + 1 AS position FROM players WHERE games > 0 AND rating > ?1").bind(me.rating).first<{ position: number }>())?.position ?? null)
         : null;
     return json({ playerId: me.id, nickname: me.nickname, rating: me.rating, games: me.games, wins: me.wins, losses: me.losses, draws: me.draws, position });
+  }
+
+  // DELETE /api/me: erase this player. Finished games stay (so the numbers add up) but lose their names.
+  if (pathname === "/api/me" && method === "DELETE") {
+    await db.batch([
+      db.prepare("UPDATE matches SET winner = 'deleted' WHERE winner = ?1").bind(me.id),
+      db.prepare("UPDATE matches SET p0 = 'deleted' WHERE p0 = ?1").bind(me.id),
+      db.prepare("UPDATE matches SET p1 = 'deleted' WHERE p1 = ?1").bind(me.id),
+      db.prepare("UPDATE feedback SET player_id = NULL, nickname = NULL WHERE player_id = ?1").bind(me.id),
+      db.prepare("DELETE FROM daily_active WHERE player_id = ?1").bind(me.id),
+      db.prepare("DELETE FROM players WHERE id = ?1").bind(me.id),
+    ]);
+    return json({ ok: true });
   }
 
   // PUT /api/me/nickname {nickname}

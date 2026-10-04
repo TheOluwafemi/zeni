@@ -966,6 +966,61 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Feedback, footer links, danger zone */
+
+.field.area {
+  display: block;
+  min-height: 110px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.home-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 2px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.home-links a,
+.home-links .link {
+  display: inline;
+  width: auto;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.home-links a {
+  display: inline-flex;
+  align-items: center;
+}
+
+.danger-zone {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+button.danger {
+  border-color: #8a4a3a;
+  color: #f0b5a8;
+}
+
+button.danger:hover {
+  background: rgba(138, 74, 58, 0.2);
+  border-color: #c26a58;
+}
+
 /* Tuning panel (?tune) */
 
 #tune {

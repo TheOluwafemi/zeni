@@ -15,7 +15,9 @@
     "icons": "tsx tools/make-icons.ts",
     "play-online": "tsx tools/play-online.ts",
     "bot-room": "tsx tools/bot-room.ts",
-    "play-quick": "tsx tools/play-quick.ts"
+    "play-quick": "tsx tools/play-quick.ts",
+    "report": "tsx tools/report.ts",
+    "share-image": "tsx tools/make-share-image.ts"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",

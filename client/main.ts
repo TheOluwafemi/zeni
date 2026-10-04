@@ -3,6 +3,8 @@
 import { AI_LEVELS, type AiLevel } from "../shared/ai";
 import type { Difficulty } from "../shared/constants";
 import { sound } from "./audio";
+import { BUILD, installErrorReporting, ping, pingOpenOnce, setScreen } from "./diagnostics";
+import { openFeedback } from "./feedback";
 import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
 import { start, startOnline, setOnExit, type Opponent } from "./game-screen";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
@@ -39,7 +41,8 @@ let table: Difficulty = load("zeni.table", ["easy", "hard"] as const, "easy");
 
 // --- Screens --------------------------------------------------------------
 
-function show(screen: "home" | "game"): void {
+function show(screen: "home" | "game", detail = ""): void {
+  setScreen(screen === "home" ? "home" : `game:${detail || "local"}`);
   home.hidden = screen !== "home";
   gameScreen.hidden = screen !== "game";
   if (screen === "home") void refreshPlayer(); // ratings change after online games
@@ -47,11 +50,17 @@ function show(screen: "home" | "game"): void {
 
 function play(opponent: Opponent): void {
   sound.unlock();
-  show("game");
+  if (opponent !== "friend") ping("computer_game");
+  show("game", opponent === "friend" ? "friend" : "computer");
   start({ opponent, difficulty: table });
 }
 
 setOnExit(() => show("home"));
+
+installErrorReporting();
+pingOpenOnce();
+$("#build").textContent = `build ${BUILD}`;
+$("#open-feedback").addEventListener("click", openFeedback);
 
 // --- Home -----------------------------------------------------------------
 
@@ -119,7 +128,7 @@ window.addEventListener(PLAYER_READY, () => {
 
 function joinRoom(code: string): void {
   sound.unlock();
-  show("game");
+  show("game", "online");
   startOnline(code, null);
 }
 
@@ -128,7 +137,7 @@ $("#quick-match").addEventListener("click", () =>
     sound.unlock();
     openQuickMatch(table, {
       matched: (room) => {
-        show("game");
+        show("game", "online");
         startOnline(room, null, { quick: true });
       },
       computer: () => play(level),
@@ -141,7 +150,7 @@ $("#open-leaderboard").addEventListener("click", openLeaderboard);
 $("#online-create").addEventListener("click", () =>
   needPlayer(() => {
     sound.unlock();
-    show("game");
+    show("game", "online");
     startOnline(newRoomCode(), table);
   }),
 );
