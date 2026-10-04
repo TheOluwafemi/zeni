@@ -18,7 +18,7 @@ export const LIMITS = {
 } as const;
 
 /** Anonymous counters a client may bump. Anything else is ignored, so the table can't be filled with junk. */
-export const CLIENT_EVENTS = ["open", "computer_game"] as const;
+export const CLIENT_EVENTS = ["open", "computer_game", "daily_puzzle"] as const;
 
 // --- Errors --------------------------------------------------------------------
 

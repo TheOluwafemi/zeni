@@ -11,6 +11,7 @@ export interface DayRow {
   activePlayers: number;
   newPlayers: number;
   computerGames: number;
+  dailyPuzzles: number;
   /** Online games that began, by how the players met. */
   startedQuick: number;
   startedFriend: number;
@@ -69,6 +70,7 @@ export async function report(db: Db, { days = 14, feedbackCount = 20, now = Date
       activePlayers: num(active.find((a) => a.day === day)?.n),
       newPlayers: num(joined.find((j) => j.day === day)?.n),
       computerGames: count("computer_game"),
+      dailyPuzzles: count("daily_puzzle"),
       startedQuick: count("game_start_quick"),
       startedFriend: count("game_start_friend"),
       finished: num(fin?.n),

@@ -1,7 +1,8 @@
 // App shell: home screen, settings, How to Play, and moving between screens.
 
 import { AI_LEVELS, type AiLevel } from "../shared/ai";
-import { CUPS, type Difficulty } from "../shared/constants";
+import { COIN_COUNT, CUPS, type Difficulty } from "../shared/constants";
+import { dailyNumber } from "../shared/daily";
 import { sound } from "./audio";
 import { BUILD, installErrorReporting, ping, pingOpenOnce, setScreen } from "./diagnostics";
 import { openFeedback } from "./feedback";
@@ -52,6 +53,7 @@ function show(screen: "home" | "game", detail = ""): void {
   home.hidden = screen !== "home";
   gameScreen.hidden = screen !== "game";
   if (screen === "home") {
+    renderDaily();
     void refreshPlayer(); // ratings change after online games
     void refreshChallenges();
   }
@@ -59,7 +61,8 @@ function show(screen: "home" | "game", detail = ""): void {
 
 function play(opponent: Opponent): void {
   sound.unlock();
-  if (opponent !== "friend") ping("computer_game");
+  if (opponent === "daily") ping("daily_puzzle");
+  else if (opponent !== "friend") ping("computer_game");
   show("game", opponent === "friend" ? "friend" : "computer");
   start({ opponent, difficulty: table, bestOf: bestOf() });
 }
@@ -162,6 +165,25 @@ startPresence(renderPresence);
 
 $("#play-computer").addEventListener("click", () => play(level));
 $("#play-friend").addEventListener("click", () => play("friend"));
+$("#play-daily").addEventListener("click", () => play("daily"));
+
+/** "Daily puzzle #4", with today's result once you've played it. */
+function renderDaily(): void {
+  const n = dailyNumber();
+  $("#daily-title").textContent = `Daily puzzle #${n}`;
+  let done: { n: number; kept: number } | null = null;
+  try {
+    done = JSON.parse(localStorage.getItem("zeni.daily") ?? "null");
+  } catch {
+    // Nothing stored.
+  }
+  const today = done?.n === n ? done : null;
+  $("#daily-text").textContent = today
+    ? `Today you kept ${today.kept} of ${COIN_COUNT}. A new table at midnight UTC.`
+    : "The same table for everyone today. Keep as many coins as you can in 3 turns.";
+  $("#play-daily").textContent = today ? "Practise today's table" : "Play today's puzzle";
+}
+renderDaily();
 
 const soundButton = $<HTMLButtonElement>("#toggle-sound");
 function syncSound(): void {

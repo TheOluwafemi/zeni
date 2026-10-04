@@ -1,6 +1,6 @@
 import type { AiLevel } from "../shared/ai";
 import { CHARACTERS, lookFromSeed, lookSeed, type Expression, type Look } from "../shared/avatar";
-import { COIN_RADIUS, DEFAULT_PHYSICS, type Difficulty } from "../shared/constants";
+import { COIN_COUNT, COIN_RADIUS, DEFAULT_PHYSICS, type Difficulty } from "../shared/constants";
 import { AIM_SEND_MS, TURN_MS, type MatchInfo, type OverInfo, type Players, type ServerMsg } from "../shared/protocol";
 import { newRoomCode } from "../shared/room-code";
 import { randomSeed } from "../shared/rng";
@@ -21,10 +21,11 @@ import { setOpponentColor } from "./game/overlay";
 import { FlatView, type TableView } from "./game/table-view";
 import type { Table3D } from "./game/table-3d";
 import type { PlaceId } from "../shared/places";
+import { DAILY_TABLE, DAILY_TURNS, dailyNumber, dailySeed, shareLine } from "../shared/daily";
 import { mountTuning } from "./tune";
 
 /** Who sits in seat 1: a friend on the same device, the computer at some level, or someone online. */
-export type Opponent = "friend" | AiLevel | "online";
+export type Opponent = "friend" | AiLevel | "online" | "daily";
 export interface Setup {
   opponent: Opponent;
   difficulty: Difficulty;
@@ -113,14 +114,16 @@ export function setOnExit(fn: () => void): void {
 // --- Names and wording ---------------------------------------------------
 
 const isOnline = () => setup.opponent === "online";
-const vsComputer = () => setup.opponent !== "friend" && setup.opponent !== "online";
+const isDaily = () => setup.opponent === "daily";
+const vsComputer = () => setup.opponent !== "friend" && setup.opponent !== "online" && !isDaily();
 /** The seat this device plays, or null when everyone shares the device. */
-const youSeat = (): Seat | null => (isOnline() ? (online?.seat ?? null) : vsComputer() ? 0 : null);
+const youSeat = (): Seat | null => (isOnline() ? (online?.seat ?? null) : vsComputer() || isDaily() ? 0 : null);
 const isYou = (seat: Seat) => youSeat() === seat;
 const isComputerTurn = () => vsComputer() && game.state.turn === COMPUTER_SEAT;
 
 function name(seat: Seat): string {
   if (isOnline()) return isYou(seat) ? "You" : (online?.players[seat]?.nickname ?? "Opponent");
+  if (isDaily()) return seat === 0 ? "You" : "The floor";
   if (!vsComputer()) return seat === 0 ? "Player 1" : "Player 2";
   return seat === COMPUTER_SEAT ? character().name : "You";
 }
@@ -143,8 +146,8 @@ function lookFor(seat: Seat): Look | null {
     const info = online?.players[seat];
     return info ? lookFromSeed(info.look) : null;
   }
-  if (!vsComputer()) return null;
-  if (seat === COMPUTER_SEAT) return character().look;
+  if (!vsComputer() && !isDaily()) return null;
+  if (seat === COMPUTER_SEAT) return isDaily() ? null : character().look;
   const me = currentPlayer();
   return me ? lookFromSeed(lookSeed(me.playerId)) : null;
 }
@@ -225,6 +228,83 @@ function say(text: string): void {
   message.textContent = text;
 }
 
+// --- The daily puzzle ------------------------------------------------------------
+
+const daily = { n: 0, turn: 1 };
+const DAILY_KEY = "zeni.daily";
+
+/** Today's first finished result, if there is one. Later tries are practice. */
+function dailyResult(): { n: number; kept: number } | null {
+  try {
+    const r = JSON.parse(localStorage.getItem(DAILY_KEY) ?? "null") as { n: number; kept: number } | null;
+    return r && r.n === dailyNumber() ? r : null;
+  } catch {
+    return null;
+  }
+}
+const dailyDone = () => dailyResult() !== null;
+const dailyLabel = () => `Daily puzzle #${daily.n} · Turn ${daily.turn} of ${DAILY_TURNS}`;
+
+/** After each shot: carry on, start the next of your turns, or finish. */
+function dailyAfterShot(outcome: Resolved["outcome"], landed: Promise<void>, token: number): void {
+  const kept = game.state.scores[0];
+  const cleared = game.state.coins.length === 0 || game.state.status === "over";
+  const turnEnded = !outcome.again;
+  if (!cleared && !turnEnded) return say(`Kept ${kept} so far. Shoot again with the same coin.`);
+  if (!cleared && daily.turn < DAILY_TURNS) {
+    daily.turn++;
+    // Your turn again: nobody else plays the daily puzzle.
+    game.state = { ...game.state, turn: 0, shooter: null };
+    $("#game-label").textContent = dailyLabel();
+    updateBars();
+    return say(`Kept ${kept} so far. Turn ${daily.turn} of ${DAILY_TURNS}: pick any coin.`);
+  }
+  game.state = { ...game.state, status: "over" };
+  updateBars();
+  say("That's your puzzle done.");
+  void landed.then(() => setTimeout(() => token === gameToken && finishDaily(kept), 250));
+}
+
+function finishDaily(kept: number): void {
+  const first = !dailyDone();
+  if (first) {
+    try {
+      localStorage.setItem(DAILY_KEY, JSON.stringify({ n: daily.n, kept }));
+    } catch {
+      // Private mode: the result just isn't remembered.
+    }
+  }
+  const today = dailyResult();
+  $("#result-title").textContent = `Daily puzzle #${daily.n}`;
+  $("#result-score").textContent = `You kept ${kept} of ${COIN_COUNT} coins`;
+  $("#result-note").textContent = first
+    ? "Same table for everyone today. A new one at midnight UTC."
+    : `Practice. Today's result is ${today?.kept ?? kept}.`;
+  $("#result-rating").textContent = "";
+  $("#result-tier").replaceChildren();
+  $<HTMLButtonElement>("#rematch").textContent = "Share";
+  result.hidden = false;
+  if (kept > 0) sound.win();
+  $<HTMLButtonElement>("#rematch").focus();
+}
+
+/** Share today's result: the phone's share sheet, or copy it. */
+async function shareDaily(): Promise<void> {
+  const r = dailyResult();
+  const text = shareLine(daily.n, r?.kept ?? game.state.scores[0]);
+  const button = $<HTMLButtonElement>("#rematch");
+  try {
+    if (navigator.share) await navigator.share({ text });
+    else {
+      await navigator.clipboard.writeText(text);
+      button.textContent = "Copied";
+      setTimeout(() => (button.textContent = "Share"), 1500);
+    }
+  } catch {
+    // Cancelled, or not allowed: nothing to do.
+  }
+}
+
 // --- Toasts ------------------------------------------------------------------
 
 const toastEl = $("#toast");
@@ -303,7 +383,16 @@ export function start(next: Setup, rematch = false, nextRound = false): void {
   game.controlledSeat = null;
   game.awaitServer = false;
   firstPlayer = rematch ? other(firstPlayer) : (Math.random() < 0.5 ? 0 : 1);
-  game.reset(nextSeed(), setup.difficulty, firstPlayer);
+  if (isDaily()) {
+    // Today's table, the same for everyone, and it's always your turn.
+    daily.n = dailyNumber();
+    daily.turn = 1;
+    firstPlayer = 0;
+    game.reset(dailySeed(daily.n), DAILY_TABLE, 0);
+  } else {
+    game.reset(nextSeed(), setup.difficulty, firstPlayer);
+  }
+  bars[1].hidden = isDaily();
   result.hidden = true;
   $<HTMLButtonElement>("#rematch").disabled = false;
   $<HTMLButtonElement>("#rematch").textContent = "Rematch";
@@ -311,12 +400,17 @@ export function start(next: Setup, rematch = false, nextRound = false): void {
   $("#result-tier").replaceChildren();
   shownPips[0] = shownPips[1] = 0;
   for (const bar of bars) bar.querySelector(".pips")!.replaceChildren();
-  $("#game-label").textContent =
-    `${vsComputer() ? `vs ${character().name} · ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${setup.difficulty === "easy" ? "Easy table" : "Hard table"}` +
-    roundLabel({ bestOf: setup.bestOf ?? 1, round: localMatch.round, wins: localMatch.wins });
+  $("#game-label").textContent = isDaily()
+    ? dailyLabel()
+    : `${vsComputer() ? `vs ${character().name} · ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${setup.difficulty === "easy" ? "Easy table" : "Hard table"}` +
+      roundLabel({ bestOf: setup.bestOf ?? 1, round: localMatch.round, wins: localMatch.wins });
   faces[0] = faces[1] = "neutral";
   updateBars();
-  say(`${goesFirst(game.state.turn)} Drag back from a coin and let go.`);
+  say(
+    isDaily()
+      ? `Keep as many coins as you can in ${DAILY_TURNS} turns. A clean hit lets you go again.${dailyDone() ? " (Practice: today's result is already in.)" : ""}`
+      : `${goesFirst(game.state.turn)} Drag back from a coin and let go.`,
+  );
   // The computer's character says hello (not on a rematch: once is enough).
   if (vsComputer() && !rematch && !nextRound) {
     const token = gameToken;
@@ -395,6 +489,8 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
     if (youSeat() === null || isYou(shooter)) navigator.vibrate?.(12);
   }
 
+  if (isDaily()) return dailyAfterShot(outcome, landed, token);
+
   // Online, the server announces the end of the game (with ratings); show the card once the last shot has played.
   // Online, a best-of-3 round ended but the match goes on: the server starts the next round itself.
   if (isOnline() && online && !online.over && game.state.status === "over" && online.match.bestOf === 3) {
@@ -432,6 +528,7 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
 };
 
 $("#rematch").addEventListener("click", () => {
+  if (isDaily()) return void shareDaily();
   if (isOnline() && online) {
     online.rematch[online.seat] = true; // show it straight away; the server confirms
     online.client.send({ t: "rematch" });
@@ -506,6 +603,7 @@ export function startOnline(
   const token = ++gameToken;
   running = true;
   setup = { opponent: "online", difficulty: create ?? "easy" };
+  bars[1].hidden = false;
   game.physics = { ...DEFAULT_PHYSICS }; // both players must simulate with the same numbers
   game.controlledSeat = 0;
   game.awaitServer = true;
