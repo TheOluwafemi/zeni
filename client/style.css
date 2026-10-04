@@ -2022,3 +2022,25 @@ button.primary {
     height: 180px;
   }
 }
+
+/* Nothing in the side column yet (no player, no challenges): centre Home in one column instead of
+   leaving an empty gap beside it. */
+#home:not(:has(.climb:not([hidden]), .home-side .challenges:not([hidden]))) {
+  max-width: 960px;
+}
+
+#home:not(:has(.climb:not([hidden]), .home-side .challenges:not([hidden]))) .home-side {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  #home:not(:has(.climb:not([hidden]), .home-side .challenges:not([hidden]))) .home-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "main"
+      "install"
+      "hint"
+      "footer";
+    grid-template-rows: auto auto auto auto;
+  }
+}
