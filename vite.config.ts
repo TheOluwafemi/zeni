@@ -26,6 +26,8 @@ const siteUrl = (): Plugin => ({
 
 export default defineConfig({
   define: { __BUILD__: JSON.stringify(buildId()) },
+  // The 3D table (three.js) is one lazily loaded chunk of about 570 kB (145 kB gzipped), fetched after Home.
+  build: { chunkSizeWarningLimit: 650 },
   plugins: [
     siteUrl(),
     cloudflare(),
@@ -51,7 +53,7 @@ export default defineConfig({
         // Online features live under /api and /ws; never serve those from the app shell.
         // /privacy is a real page (the host serves privacy.html there), not part of the game.
         navigateFallbackDenylist: [/^\/api\//, /^\/ws\//, /^\/privacy(\.html)?\/?$/],
-        globPatterns: ["**/*.{js,css,html,svg,png,webp}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,webp,m4a}"],
         // The link-preview picture is for chat apps and social sites, not for the installed game.
         globIgnores: ["og.png"],
       },

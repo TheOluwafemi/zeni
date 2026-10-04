@@ -90,12 +90,13 @@ function renderCard(): void {
     climb.hidden = true;
     return;
   }
-  $("#player-rating").textContent = `${tierFor(me.rating).name} · ${me.rating} · ${me.wins}W ${me.losses}L${me.position ? ` · #${me.position}` : ""}`;
+  // Short enough for the chip in Home's top bar; the record goes under the progress bar.
+  $("#player-rating").textContent = `${tierFor(me.rating).name} · ${me.rating}`;
   climb.hidden = false;
   const percent = Math.round(progressToNext(me.rating) * 100);
   $("#climb-fill").style.width = `${percent}%`;
   climb.querySelector(".climb-bar")!.setAttribute("aria-valuenow", String(percent));
-  $("#climb-note").textContent = nextTierNote(me.rating);
+  $("#climb-note").textContent = `${nextTierNote(me.rating)} · ${me.wins}W ${me.losses}L${me.position ? ` · #${me.position}` : ""}`;
 }
 
 /** Load the signed-in player, if this device has a code. */
@@ -221,7 +222,7 @@ restoreForm.addEventListener("submit", async (e) => {
   }
 });
 
-$("#restore-player").addEventListener("click", showRestore);
+// "I have a code" is offered from the create sheet.
 $("#restore-cancel").addEventListener("click", closeSheets);
 
 // --- Settings -------------------------------------------------------------------

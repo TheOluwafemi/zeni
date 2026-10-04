@@ -14,6 +14,11 @@ const KNOBS: Knob[] = [
   { key: "coinRestitution", label: "Coin bounce", min: 0.5, max: 1, step: 0.01 },
   { key: "cupRestitution", label: "Cup bounce", min: 0.1, max: 1, step: 0.05 },
   { key: "powerExponent", label: "Power curve", min: 1, max: 2.5, step: 0.05 },
+  { key: "contactFriction", label: "Grip", min: 0, max: 0.5, step: 0.01 },
+  { key: "softSpeed", label: "Soft taps below", min: 0, max: 800, step: 10 },
+  { key: "driftSpeed", label: "Drift below", min: 0, max: 800, step: 10 },
+  { key: "driftFriction", label: "Drift friction", min: 0.2, max: 1, step: 0.05 },
+  { key: "spinDecay", label: "Spin decay", min: 1, max: 40, step: 1 },
 ];
 
 /** Live sliders for the physics feel. Only shown with ?tune in the URL. */

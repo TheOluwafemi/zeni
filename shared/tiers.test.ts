@@ -52,3 +52,17 @@ describe("tierChange", () => {
     expect(tierChange(1000, 984)).toBe("same");
   });
 });
+
+describe("places", () => {
+  test("the kitchen is open to everyone; the café opens at Apprentice", async () => {
+    const { PLACES, placeFor, unlocked } = await import("./places");
+    const [kitchen, cafe] = PLACES;
+    expect(unlocked(kitchen, null)).toBe(true);
+    expect(unlocked(cafe, null)).toBe(false);
+    expect(unlocked(cafe, 1099)).toBe(false);
+    expect(unlocked(cafe, 1100)).toBe(true);
+    expect(placeFor("cafe", 1000).id).toBe("kitchen"); // picked, but not reached yet
+    expect(placeFor("cafe", 1200).id).toBe("cafe");
+    expect(placeFor("nowhere", 1200).id).toBe("kitchen");
+  });
+});

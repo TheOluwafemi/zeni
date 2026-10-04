@@ -39,14 +39,21 @@ function makeNoise(seed: number) {
   };
 }
 
-// Walnut palette: dark latewood, warm earlywood.
-const DARK = [74, 44, 25];
-const LIGHT = [138, 90, 54];
+/** Dark latewood and lighter earlywood colours. */
+export interface WoodPalette {
+  dark: [number, number, number];
+  light: [number, number, number];
+}
 
-let cached: HTMLCanvasElement | null = null;
+export const WALNUT: WoodPalette = { dark: [74, 44, 25], light: [138, 90, 54] };
+export const OAK: WoodPalette = { dark: [168, 124, 78], light: [222, 186, 138] };
 
-export function woodTexture(): HTMLCanvasElement {
+const cache = new Map<WoodPalette, HTMLCanvasElement>();
+
+export function woodTexture(palette: WoodPalette = WALNUT): HTMLCanvasElement {
+  const cached = cache.get(palette);
   if (cached) return cached;
+  const { dark: DARK, light: LIGHT } = palette;
 
   const size = TEXTURE_SIZE;
   const canvas = document.createElement("canvas");
@@ -101,6 +108,6 @@ export function woodTexture(): HTMLCanvasElement {
     g.fillRect(0, y + 1, size, 1);
   }
 
-  cached = canvas;
+  cache.set(palette, canvas);
   return canvas;
 }

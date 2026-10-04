@@ -1,6 +1,7 @@
 // The messages between a player's phone and a room on the server.
 
 import type { Difficulty } from "./constants";
+import { isReactionId, type ReactionId } from "./reactions";
 import type { GameState, Seat, Shot, ShotOutcome } from "./types";
 
 /** Longest message the server will look at. Real messages are well under 200 bytes. */
@@ -12,6 +13,8 @@ export const TURN_MS = 20_000;
 export const ANIM_GRACE_MS = 800;
 /** A dropped player has this long to come back before they forfeit. */
 export const RECONNECT_MS = 30_000;
+/** In a best-of-3, the pause between rounds (after the last shot has played). */
+export const ROUND_BREAK_MS = 4000;
 /** Missing this many turns in a row forfeits the game. */
 export const MAX_TIMEOUTS = 3;
 /** A room nobody joins, or a finished one nobody uses, is deleted after this long. */
@@ -22,6 +25,8 @@ export interface PlayerInfo {
   rating: number;
   /** False while the player is dropped and the room is waiting for them to return. */
   connected: boolean;
+  /** Picks their avatar (a hash of their id, so the id itself isn't shared). */
+  look: number;
 }
 export type Players = [PlayerInfo | null, PlayerInfo | null];
 
@@ -33,23 +38,48 @@ export interface OverInfo {
   scores: [number, number];
   /** Ratings before and after, once the server has recorded the result. */
   ratings: { before: [number, number]; after: [number, number] } | null;
+  /** In a best-of-3, the rounds each player won. */
+  wins?: [number, number];
+}
+
+/** Where a match stands: a single game, or a best-of-3. */
+export interface MatchInfo {
+  bestOf: 1 | 3;
+  /** The round being played (1 for a single game). */
+  round: number;
+  /** Rounds won so far. */
+  wins: [number, number];
 }
 
 export interface RoomInfo {
   code: string;
   table: Difficulty;
   status: "waiting" | "playing" | "over";
+  match: MatchInfo;
+  /** Between rounds of a best-of-3: milliseconds until the next round starts. */
+  nextRoundIn: number | null;
 }
 
 // --- Phone → server ---------------------------------------------------------------
 
 export type ClientMsg =
   /** First message on every connection. `create` opens a new room with that table. */
-  | { t: "hello"; code: string; create?: Difficulty }
+  | { t: "hello"; code: string; create?: Difficulty; bestOf?: 1 | 3 }
   /** `seq` is the number of shots played so far, so a stale or repeated shot is ignored. */
   | { t: "shot"; seq: number; coinId: number; angle: number; power: number }
   | { t: "resign" }
-  | { t: "rematch" };
+  | { t: "rematch" }
+  /** Live aim while lining up a shot, so the opponent can watch. Relayed, never simulated or stored. */
+  | { t: "aim"; seq: number; coinId: number; angle: number; power: number }
+  /** Stopped aiming without shooting (a shot ends the aim on its own). */
+  | { t: "aim_end"; seq: number }
+  /** A preset reaction ("Nice shot!", 👏…) for the other player. */
+  | { t: "react"; r: ReactionId };
+
+/** How often a phone sends its aim while dragging. */
+export const AIM_SEND_MS = 125;
+/** The room drops aim updates that come faster than this from one player. */
+export const AIM_MIN_GAP_MS = 60;
 
 // --- Server → phone ---------------------------------------------------------------
 
@@ -68,13 +98,19 @@ export type ServerMsg =
     }
   | { t: "players"; players: Players }
   /** A game began (the second player arrived, or both agreed to a rematch). */
-  | { t: "start"; state: GameState; deadlineIn: number; players: Players }
+  | { t: "start"; state: GameState; deadlineIn: number; players: Players; match: MatchInfo }
+  /** A round of a best-of-3 ended and the match goes on: the next round starts in `nextIn` ms. */
+  | { t: "round_over"; winner: Seat | "draw"; match: MatchInfo; nextIn: number }
   /** A shot was played. `state` is the authoritative result; phones animate and then snap to it. */
   | { t: "shot"; seq: number; by: Seat; shot: Shot; state: GameState; outcome: ShotOutcome; animMs: number; deadlineIn: number }
   /** A player ran out of time and the turn passed. */
   | { t: "turn"; state: GameState; deadlineIn: number; timeouts: number; who: Seat }
   | { t: "over"; over: OverInfo }
   | { t: "rematch"; votes: [boolean, boolean] }
+  /** The other player's live aim. */
+  | { t: "aim"; by: Seat; coinId: number; angle: number; power: number }
+  | { t: "aim_end"; by: Seat }
+  | { t: "react"; by: Seat; r: ReactionId }
   | { t: "error"; error: ErrorCode };
 
 export type ErrorCode =
@@ -92,10 +128,20 @@ export type ErrorCode =
 
 // --- Quick Match queue -------------------------------------------------------------
 
-export type QueueClientMsg = { t: "queue"; code: string } | { t: "cancel" };
+export type QueueClientMsg =
+  | { t: "queue"; code: string }
+  | { t: "cancel" }
+  /** Say yes or no to an offered match. */
+  | { t: "accept"; offer: string }
+  | { t: "decline"; offer: string };
+
 export type QueueServerMsg =
   | { t: "queued"; waiting: number }
-  /** Two players were paired and a room is ready for them: connect to it. */
+  /** An opponent was found. Accept within `expiresIn` ms, or you leave the queue. */
+  | { t: "offer"; offer: string; table: Difficulty; expiresIn: number; opponent: { nickname: string; rating: number } }
+  /** The offer fell through on the other side; you're back in the queue, in your old place. */
+  | { t: "offer_cancelled"; reason: "declined" | "expired" | "left" | "server" }
+  /** Both accepted and a room is ready: connect to it. */
   | { t: "matched"; room: string; table: Difficulty }
   | { t: "error"; error: ErrorCode };
 
@@ -111,6 +157,7 @@ export function parseQueueMsg(raw: unknown): QueueClientMsg | null {
   const o = m as Record<string, unknown>;
   if (o.t === "queue" && typeof o.code === "string" && o.code.length <= 64) return { t: "queue", code: o.code };
   if (o.t === "cancel") return { t: "cancel" };
+  if ((o.t === "accept" || o.t === "decline") && typeof o.offer === "string" && o.offer.length <= 64) return { t: o.t, offer: o.offer };
   return null;
 }
 
@@ -133,7 +180,8 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
     case "hello":
       if (typeof o.code !== "string" || o.code.length > 64) return null;
       if (o.create !== undefined && o.create !== "easy" && o.create !== "hard") return null;
-      return { t: "hello", code: o.code, create: o.create };
+      if (o.bestOf !== undefined && o.bestOf !== 1 && o.bestOf !== 3) return null;
+      return { t: "hello", code: o.code, create: o.create, ...(o.bestOf === 3 ? { bestOf: 3 as const } : {}) };
     case "shot":
       if (!Number.isInteger(o.seq) || !Number.isInteger(o.coinId) || !isNum(o.angle) || !isNum(o.power)) return null;
       return { t: "shot", seq: o.seq as number, coinId: o.coinId as number, angle: o.angle, power: o.power };
@@ -141,6 +189,14 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
       return { t: "resign" };
     case "rematch":
       return { t: "rematch" };
+    case "aim":
+      if (!Number.isInteger(o.seq) || !Number.isInteger(o.coinId) || !isNum(o.angle) || !isNum(o.power)) return null;
+      return { t: "aim", seq: o.seq as number, coinId: o.coinId as number, angle: o.angle, power: o.power };
+    case "aim_end":
+      if (!Number.isInteger(o.seq)) return null;
+      return { t: "aim_end", seq: o.seq as number };
+    case "react":
+      return isReactionId(o.r) ? { t: "react", r: o.r } : null;
     default:
       return null;
   }

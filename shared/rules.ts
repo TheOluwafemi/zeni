@@ -32,26 +32,32 @@ export function newGame(seed: number, difficulty: Difficulty = "easy", first?: S
   const far = (a: { x: number; y: number }, b: { x: number; y: number }, d: number) =>
     (a.x - b.x) ** 2 + (a.y - b.y) ** 2 >= d * d;
 
-  let attempts = 0;
-  const guard = () => {
-    if (++attempts > 20_000) throw new Error("Could not lay out the table");
+  // Place the cups, then the coins around them. Early cups can land where the rest can't fit; then
+  // start the whole layout again, carrying on the same random sequence (so a seed is still one table).
+  const layout = (): { cups: Cup[]; coins: Coin[] } | null => {
+    const cups: Cup[] = [];
+    for (let tries = 0; cups.length < CUPS[difficulty]; tries++) {
+      if (tries > 2_000) return null;
+      const p = place(CUP_MARGIN);
+      if (cups.every((c) => far(c, p, CUP_SPACING))) cups.push(p);
+    }
+    const coins: Coin[] = [];
+    for (let tries = 0; coins.length < COIN_COUNT; tries++) {
+      if (tries > 5_000) return null;
+      const p = place(COIN_MARGIN);
+      if (coins.every((c) => far(c, p, COIN_SPACING)) && cups.every((c) => far(c, p, CUP_CLEARANCE))) {
+        coins.push({ id: coins.length, ...p, vx: 0, vy: 0 });
+      }
+    }
+    return { cups, coins };
   };
 
-  const cups: Cup[] = [];
-  while (cups.length < CUPS[difficulty]) {
-    guard();
-    const p = place(CUP_MARGIN);
-    if (cups.every((c) => far(c, p, CUP_SPACING))) cups.push(p);
+  let table = layout();
+  for (let again = 0; !table; again++) {
+    if (again > 200) throw new Error("Could not lay out the table");
+    table = layout();
   }
-
-  const coins: Coin[] = [];
-  while (coins.length < COIN_COUNT) {
-    guard();
-    const p = place(COIN_MARGIN);
-    if (coins.every((c) => far(c, p, COIN_SPACING)) && cups.every((c) => far(c, p, CUP_CLEARANCE))) {
-      coins.push({ id: coins.length, ...p, vx: 0, vy: 0 });
-    }
-  }
+  const { cups, coins } = table;
 
   return {
     seed,

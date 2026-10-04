@@ -65,7 +65,7 @@ console.log(
 );
 
 console.log("DAILY");
-const busy = r.days.filter((d) => d.opens + d.activePlayers + d.newPlayers + d.computerGames + d.startedQuick + d.startedFriend + d.finished > 0);
+const busy = r.days.filter((d) => d.opens + d.activePlayers + d.newPlayers + d.computerGames + d.dailyPuzzles + d.startedQuick + d.startedFriend + d.finished > 0);
 if (busy.length === 0) console.log("  no activity yet\n");
 else {
   console.table(
@@ -77,6 +77,7 @@ else {
           "players seen": d.activePlayers,
           "new players": d.newPlayers,
           "vs computer": d.computerGames,
+          daily: d.dailyPuzzles,
           "online started": d.startedQuick + d.startedFriend,
           "(quick / friend)": `${d.startedQuick} / ${d.startedFriend}`,
           finished: d.finished,

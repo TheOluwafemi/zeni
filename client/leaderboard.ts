@@ -2,6 +2,8 @@
 
 import { currentPlayer, refreshPlayer } from "./account";
 import { api, ApiError } from "./api";
+import type { Difficulty } from "../shared/constants";
+import { challenge } from "./challenges";
 import { tierBadge } from "./tier";
 
 interface Row {
@@ -17,10 +19,38 @@ const list = $("#board-list");
 const status = $("#board-status");
 const pinned = $("#board-me");
 
+let table: Difficulty = "easy";
+
 function rowElement(row: { rank: number | string; nickname: string; rating: number }, mine: boolean): HTMLElement {
-  const el = document.createElement(mine ? "li" : "li");
+  const el = document.createElement("li");
   el.className = `board-row${mine ? " me" : ""}`;
   el.append(...cells(row));
+  // Anyone else can be challenged, once you have a player.
+  if (!mine && currentPlayer()) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "challenge-btn";
+    b.textContent = "Challenge";
+    b.setAttribute("aria-label", `Challenge ${row.nickname}`);
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      status.textContent = "";
+      const error = await challenge(row.nickname, table);
+      b.disabled = false;
+      if (error) status.textContent = error;
+      else close();
+    });
+    el.append(b);
+  } else if (mine && currentPlayer()) {
+    // Keeps your rating lined up with everyone else's, which have a Challenge button beside them.
+    const spacer = document.createElement("button");
+    spacer.type = "button";
+    spacer.tabIndex = -1;
+    spacer.className = "challenge-btn spacer";
+    spacer.textContent = "Challenge";
+    spacer.setAttribute("aria-hidden", "true");
+    el.append(spacer);
+  }
   return el;
 }
 
@@ -75,7 +105,9 @@ function render(players: Row[]): void {
   }
 }
 
-export function openLeaderboard(): void {
+/** Open the board. Challenges sent from it are for `forTable`. */
+export function openLeaderboard(forTable: Difficulty = "easy"): void {
+  table = forTable;
   sheet.hidden = false;
   $<HTMLButtonElement>("#board-close").focus();
   void load();

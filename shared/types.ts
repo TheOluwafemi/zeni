@@ -57,6 +57,8 @@ export interface ShotResult {
   steps: number;
   /** Per step, [x0, y0, x1, y1, ...] in input coin order. Fallen coins stay frozen where they fell. */
   frames?: Float32Array[];
+  /** Per step, how far each coin has turned since the shot began (radians), in input coin order. */
+  turns?: Float32Array[];
 }
 
 export interface ShotOutcome {

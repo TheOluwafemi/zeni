@@ -209,3 +209,13 @@ describe("full games", () => {
     }
   });
 });
+
+test("every seed lays out a full table, even with the most cups", () => {
+  for (const difficulty of ["easy", "hard"] as const) {
+    for (let seed = 1; seed <= 5000; seed++) {
+      const s = newGame(seed, difficulty);
+      expect(s.coins).toHaveLength(COIN_COUNT);
+      expect(s.cups).toHaveLength(CUPS[difficulty]);
+    }
+  }
+});

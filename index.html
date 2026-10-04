@@ -28,74 +28,102 @@
   <body>
     <!-- Home -->
     <section id="home" class="screen" hidden>
-      <header class="brand">
-        <canvas class="brand-coin" width="160" height="160" aria-hidden="true"></canvas>
-        <h1>Zeni</h1>
-        <p class="tagline"><span lang="ja">銭はじき</span> · flick the coins</p>
+      <header class="home-top">
+        <div class="logo">
+          <canvas class="brand-coin" width="68" height="68" aria-hidden="true"></canvas>
+          <h1>Zeni</h1>
+        </div>
+        <div class="home-top-actions">
+          <button type="button" id="toggle-sound" class="icon-btn" aria-pressed="true" aria-label="Sound on"></button>
+          <div id="player-card">
+            <div id="player-out">
+              <button type="button" class="pill" id="create-player">Create player</button>
+            </div>
+            <div id="player-in" hidden>
+              <button type="button" class="pill player-pill" id="open-settings" aria-label="Your player and settings">
+                <span id="player-badge"></span>
+                <span class="pill-text"><strong id="player-name"></strong><span id="player-rating"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
       </header>
 
-      <div class="menu">
-        <div class="card">
-          <h2>Play the computer</h2>
-          <div class="seg" role="radiogroup" aria-label="Computer level" data-group="level">
-            <button type="button" role="radio" data-value="beginner">Beginner</button>
-            <button type="button" role="radio" data-value="skilled">Skilled</button>
-            <button type="button" role="radio" data-value="master">Master</button>
+      <div class="home-body">
+        <div class="home-main">
+          <div class="home-hero">
+            <h2>Flick. Hit one. Keep it.</h2>
+            <p>Pick a way to play. Everything else is one tap away.</p>
           </div>
-          <button type="button" class="primary" id="play-computer">Play</button>
-        </div>
 
-        <button type="button" id="play-friend">Play a friend on this device</button>
+          <div class="play-tiles">
+            <button type="button" class="tile tile-online" id="quick-match">
+              <span class="tile-kicker">Online · Ranked</span>
+              <strong class="tile-title">Quick Match</strong>
+              <span class="tile-sub"><span class="live-dot" aria-hidden="true"></span><span id="presence" aria-live="polite"></span></span>
+              <svg class="tile-coin" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="96" fill="#d99a2f"/><circle cx="100" cy="100" r="80" fill="none" stroke="#b9822a" stroke-width="6"/><rect x="66" y="66" width="68" height="68" rx="6" fill="#f0bb55"/></svg>
+              <span class="tile-cta">Find a match <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+            </button>
 
-        <div class="card">
-          <h2>Table</h2>
-          <div class="seg" role="radiogroup" aria-label="Table" data-group="table">
-            <button type="button" role="radio" data-value="easy">Easy · 2 cups</button>
-            <button type="button" role="radio" data-value="hard">Hard · 4 cups</button>
-          </div>
-        </div>
-
-        <div class="card" id="player-card">
-          <h2>Your player</h2>
-          <div id="player-out">
-            <p class="muted">Online play needs a player: just a nickname. No email, no password.</p>
-            <div class="row">
-              <button type="button" class="primary" id="create-player">Create player</button>
-              <button type="button" id="restore-player">I have a code</button>
-            </div>
-          </div>
-          <div id="player-in" hidden>
-            <div class="who">
-              <div class="who-name"><span id="player-badge"></span><strong id="player-name"></strong></div>
-              <span id="player-rating" class="muted"></span>
-              <div class="climb" id="player-climb" hidden>
-                <div class="climb-bar" role="progressbar" aria-label="Progress to the next tier" aria-valuemin="0" aria-valuemax="100"><span id="climb-fill"></span></div>
-                <span id="climb-note" class="muted small"></span>
+            <div class="tile tile-computer">
+              <span class="tile-kicker">Solo</span>
+              <strong class="tile-title">Play the computer</strong>
+              <div class="seg opponents" role="radiogroup" aria-label="Who to play" data-group="level">
+                <button type="button" role="radio" data-value="beginner">Beginner</button>
+                <button type="button" role="radio" data-value="skilled">Skilled</button>
+                <button type="button" role="radio" data-value="master">Master</button>
               </div>
+              <button type="button" class="primary" id="play-computer">Play</button>
             </div>
-            <button type="button" id="open-settings">Settings</button>
           </div>
+
+          <button type="button" class="settings-line" id="open-game-settings" aria-label="Game settings: table, match and place">
+            <span class="settings-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span>
+            <span id="settings-summary"></span>
+            <span class="settings-change">Change</span>
+            <span aria-hidden="true">›</span>
+          </button>
+
+          <nav class="quick-links" aria-label="More ways to play">
+            <button type="button" id="open-friend">
+              <span class="ql-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>
+              <span class="ql-text"><strong>Play a friend</strong><span>Room link, or one device</span></span>
+            </button>
+            <button type="button" id="play-daily">
+              <span class="ql-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+              <span class="ql-text"><strong id="daily-title">Daily puzzle</strong><span id="daily-text">Same table for everyone today</span></span>
+              <span class="ql-cta" id="daily-cta">Play</span>
+            </button>
+            <button type="button" id="open-leaderboard">
+              <span class="ql-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg></span>
+              <span class="ql-text"><strong>Leaderboard</strong><span>See where you stand</span></span>
+            </button>
+            <button type="button" id="open-howto">
+              <span class="ql-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></span>
+              <span class="ql-text"><strong>How to play</strong><span>A one-minute lesson</span></span>
+            </button>
+          </nav>
         </div>
 
-        <div class="card" id="online-card">
-          <h2>Play online</h2>
-          <button type="button" class="primary wide" id="quick-match">Quick Match</button>
-          <p class="muted small">Play a stranger of a similar rating on the table chosen above. Counts for your rank.</p>
-          <button type="button" class="wide" id="online-create">Play a friend: create a room</button>
-          <p class="muted small">You'll get a link to send them. Also counts for your rank.</p>
-          <form id="online-join" class="row" novalidate>
-            <input id="online-code" class="field code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Room code" aria-label="Room code" />
-            <button type="submit">Join</button>
-          </form>
-          <p id="online-status" class="status" aria-live="polite"></p>
-        </div>
+        <!-- Beside the main area on wide screens, below it on narrow ones. -->
+        <aside class="home-side">
+          <!-- Your climb to the next tier, when you've played online -->
+          <div class="climb" id="player-climb" hidden>
+            <span class="tile-kicker">Your climb</span>
+            <div class="climb-bar" role="progressbar" aria-label="Progress to the next tier" aria-valuemin="0" aria-valuemax="100"><span id="climb-fill"></span></div>
+            <span id="climb-note" class="muted small"></span>
+          </div>
 
-        <button type="button" id="open-leaderboard">Leaderboard</button>
-
-        <div class="row">
-          <button type="button" id="open-howto">How to play</button>
-          <button type="button" id="toggle-sound" aria-pressed="true">Sound on</button>
-        </div>
+          <div id="challenges" class="challenges" hidden>
+            <h3 class="sub">Challenges</h3>
+            <ul class="challenge-list"></ul>
+          </div>
+          <div id="recent" class="challenges" hidden>
+            <h3 class="sub">Play again</h3>
+            <ul class="challenge-list"></ul>
+          </div>
+          <p id="challenge-status" class="status bad" aria-live="polite"></p>
+        </aside>
 
         <button type="button" id="install" hidden>Install Zeni</button>
         <div id="ios-hint" class="hint" hidden>
@@ -113,6 +141,43 @@
       </div>
     </section>
 
+    <!-- Game settings: table, match and place -->
+    <div id="sheet-game" class="overlay" hidden>
+      <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
+        <h3 id="game-settings-title" class="title">Game settings</h3>
+        <span class="label">Table</span>
+        <div class="seg" role="radiogroup" aria-label="Table" data-group="table">
+          <button type="button" role="radio" data-value="easy">Easy</button>
+          <button type="button" role="radio" data-value="hard">Hard</button>
+        </div>
+        <span class="label">Match</span>
+        <div class="seg" role="radiogroup" aria-label="Match" data-group="match">
+          <button type="button" role="radio" data-value="1">Single game</button>
+          <button type="button" role="radio" data-value="3">Best of 3</button>
+        </div>
+        <span class="label">Place</span>
+        <div class="seg" role="radiogroup" aria-label="Place" id="place-picker"></div>
+        <p class="muted small" id="place-note"></p>
+        <button type="button" class="primary wide" id="game-settings-done">Done</button>
+      </div>
+    </div>
+
+    <!-- Play a friend: online room, or on this device -->
+    <div id="sheet-friend" class="overlay" hidden>
+      <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="friend-title">
+        <h3 id="friend-title" class="title">Play a friend</h3>
+        <button type="button" class="primary wide" id="online-create">Create a room</button>
+        <p class="muted small">You'll get a link to send them. Counts for your rank.</p>
+        <form id="online-join" class="row" novalidate>
+          <input id="online-code" class="field code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Room code" aria-label="Room code" />
+          <button type="submit">Join</button>
+        </form>
+        <p id="online-status" class="status" aria-live="polite"></p>
+        <button type="button" class="wide" id="play-friend">Play on this device</button>
+        <button type="button" class="link" id="friend-close">Close</button>
+      </div>
+    </div>
+
     <!-- Game -->
     <main id="game" class="screen" hidden>
       <nav class="topbar">
@@ -123,6 +188,7 @@
 
       <section class="player" data-seat="1">
         <span class="turn-dot" aria-hidden="true"></span>
+        <span class="avatar" aria-hidden="true"></span>
         <span class="badge-slot"></span>
         <span class="name"></span>
         <span class="rating-chip"></span>
@@ -133,10 +199,13 @@
 
       <div id="board-wrap">
         <canvas id="board" aria-label="Game table"></canvas>
+        <button type="button" id="view-toggle" class="view-toggle" hidden>Top view</button>
+        <div id="toast" class="toast" role="status" hidden></div>
       </div>
 
       <section class="player" data-seat="0">
         <span class="turn-dot" aria-hidden="true"></span>
+        <span class="avatar" aria-hidden="true"></span>
         <span class="badge-slot"></span>
         <span class="name"></span>
         <span class="rating-chip"></span>
@@ -146,6 +215,7 @@
       </section>
 
       <p id="message" aria-live="polite"></p>
+      <div class="reactions" role="group" aria-label="Send a reaction" hidden></div>
     </main>
 
     <!-- Result -->
@@ -156,6 +226,7 @@
         <p id="result-note"></p>
         <p id="result-rating"></p>
         <p id="result-tier"></p>
+        <div class="reactions" role="group" aria-label="Send a reaction" hidden></div>
         <div class="row">
           <button type="button" id="result-home">Home</button>
           <button type="button" class="primary" id="rematch">Rematch</button>
@@ -163,52 +234,6 @@
       </div>
     </div>
 
-    <!-- How to play -->
-    <div id="howto" class="overlay" hidden>
-      <div class="card dialog howto" role="dialog" aria-modal="true" aria-labelledby="howto-title">
-        <h2 id="howto-title" class="visually-hidden">How to play</h2>
-        <ol class="slides">
-          <li>
-            <svg viewBox="0 0 200 120" aria-hidden="true">
-              <line x1="70" y1="60" x2="22" y2="88" class="band" />
-              <circle cx="22" cy="88" r="7" class="finger" />
-              <circle cx="80" cy="60" r="16" class="coin" />
-              <line x1="104" y1="46" x2="172" y2="8" class="arrow" />
-            </svg>
-            <h3>Flick</h3>
-            <p>Press a coin, drag back like a slingshot, and let go. The further you pull, the harder it flies.</p>
-          </li>
-          <li>
-            <svg viewBox="0 0 200 120" aria-hidden="true">
-              <circle cx="40" cy="60" r="16" class="coin" />
-              <circle cx="78" cy="60" r="16" class="coin kept" />
-              <text x="78" y="28" class="mark ok">✓</text>
-              <circle cx="128" cy="44" r="16" class="coin" />
-              <circle cx="128" cy="78" r="16" class="coin" />
-              <circle cx="166" cy="61" r="16" class="coin dim" />
-              <text x="128" y="114" class="mark no">✕</text>
-            </svg>
-            <h3>Hit exactly one</h3>
-            <p>Touch exactly one coin and you keep it, then go again with the same coin. Touch none, or two, and your turn ends.</p>
-          </li>
-          <li>
-            <svg viewBox="0 0 200 120" aria-hidden="true">
-              <path d="M10 120 A 150 150 0 0 1 150 10" class="edge" />
-              <circle cx="168" cy="40" r="14" class="coin falling" />
-              <circle cx="70" cy="80" r="22" class="cup" />
-              <circle cx="70" cy="80" r="15" class="tea" />
-            </svg>
-            <h3>Mind the edge</h3>
-            <p>Any coin that falls off the table goes to your opponent. Tea cups block your path, but you can bounce off them.</p>
-          </li>
-        </ol>
-        <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div class="row">
-          <button type="button" id="howto-skip" class="ghost">Skip</button>
-          <button type="button" class="primary" id="howto-next">Next</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Create a player -->
     <div id="sheet-create" class="overlay" hidden>
@@ -329,8 +354,27 @@
         <div class="spinner" aria-hidden="true"></div>
         <h3 id="queue-title" class="title">Finding a match</h3>
         <p id="queue-text" class="muted" role="status"></p>
-        <button type="button" class="wide" id="queue-computer" hidden>Play the computer while you wait</button>
+        <button type="button" class="wide" id="queue-computer">Play the computer while you wait</button>
         <button type="button" class="link" id="queue-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Quick Match searching behind a game against the computer -->
+    <div id="queue-pill" class="queue-pill" role="status" hidden>
+      <span class="pulse" aria-hidden="true"></span>
+      <span id="queue-pill-text">Looking for a game</span>
+      <button type="button" id="queue-pill-stop" class="link" aria-label="Stop looking for a game">✕</button>
+    </div>
+
+    <!-- The background search found someone -->
+    <div id="match-offer" class="offer-banner" role="alertdialog" aria-labelledby="offer-title" aria-describedby="offer-who" hidden>
+      <div>
+        <strong id="offer-title">Opponent found</strong>
+        <span id="offer-who" class="muted"></span>
+      </div>
+      <div class="offer-actions">
+        <button type="button" id="offer-skip" class="link">Not now</button>
+        <button type="button" id="offer-join" class="primary">Join</button>
       </div>
     </div>
 
@@ -338,9 +382,9 @@
     <div id="sheet-lobby" class="overlay" hidden>
       <div class="card dialog" role="dialog" aria-modal="true" aria-labelledby="lobby-title">
         <h3 id="lobby-title" class="title">Waiting for a friend</h3>
-        <p class="muted">Send them this code or the link. The game starts as soon as they join.</p>
+        <p id="lobby-text" class="muted">Send them this code or the link. The game starts as soon as they join.</p>
         <p id="lobby-code" class="room-code" aria-label="Room code"></p>
-        <div class="row">
+        <div class="row" id="lobby-share-row">
           <button type="button" id="lobby-copy">Copy link</button>
           <button type="button" class="primary" id="lobby-share">Share</button>
         </div>

@@ -10,6 +10,7 @@ import { simulateShot } from "../../shared/physics";
 import { mulberry32 } from "../../shared/rng";
 import { freeCoinIds, legalShot, newGame, resolveShot } from "../../shared/rules";
 import type { Coin, GameState, Seat, Shot, ShotOutcome, ShotResult, SimEvent } from "../../shared/types";
+import { aimSettled, approachAim, type AimUpdate } from "../aim-relay";
 import { METAL_COUNT } from "./sprites";
 import type { Point } from "./view";
 
@@ -77,6 +78,8 @@ export class LocalGame {
   state!: GameState;
   physics: PhysicsConfig = { ...DEFAULT_PHYSICS };
   aim: Aim | null = null;
+  /** Online: the other player's live aim, smoothed for drawing. */
+  remoteAim: Aim | null = null;
   ghosts: Ghost[] = [];
   onResolved: (r: Resolved) => void = () => {};
   /** A shot was fired (for the flick sound). */
@@ -94,6 +97,8 @@ export class LocalGame {
   awaitServer = false;
 
   private anim: Anim | null = null;
+  private remoteTarget: AimUpdate | null = null;
+  private remoteShown: AimUpdate | null = null;
   private free = new Set<number>();
   private hidden = new Set<number>();
   private rotation = new Map<number, number>();
@@ -111,6 +116,7 @@ export class LocalGame {
   load(state: GameState): void {
     this.state = state;
     this.aim = null;
+    this.setRemoteAim(null);
     this.anim = null;
     this.ghosts = [];
     this.hidden.clear();
@@ -195,16 +201,21 @@ export class LocalGame {
 
   /** Show someone else's shot being lined up: `t` runs 0→1 as the pull draws back. */
   previewAim(shot: Shot, t: number): void {
-    const c = this.state.coins.find((k) => k.id === shot.coinId);
-    if (!c) return;
-    const power = shot.power * t;
-    const pull = COIN_RADIUS + power * MAX_DRAG;
-    this.aim = {
-      coinId: shot.coinId,
-      pointer: { x: c.x - Math.cos(shot.angle) * pull, y: c.y - Math.sin(shot.angle) * pull },
-      angle: shot.angle,
-      power,
-    };
+    this.aim = this.aimFrom({ coinId: shot.coinId, angle: shot.angle, power: shot.power * t });
+  }
+
+  /** The other player's latest aim from the server, or null when they stop aiming. */
+  setRemoteAim(update: AimUpdate | null): void {
+    this.remoteTarget = update;
+    if (!update) this.remoteShown = this.remoteAim = null;
+  }
+
+  /** An aim as if a finger were pulling back from the coin. */
+  private aimFrom(u: AimUpdate): Aim | null {
+    const c = this.state.coins.find((k) => k.id === u.coinId);
+    if (!c) return null;
+    const pull = COIN_RADIUS + u.power * MAX_DRAG;
+    return { ...u, pointer: { x: c.x - Math.cos(u.angle) * pull, y: c.y - Math.sin(u.angle) * pull } };
   }
 
   fire(shot: Shot): void {
@@ -217,6 +228,7 @@ export class LocalGame {
 
   /** Start playing a shot. Online, `auth` is the server's result when it's already known. */
   private play(shot: Shot, auth: Authoritative | null, mine: boolean): void {
+    this.setRemoteAim(null); // the shot replaces whatever aim was showing
     const result = simulateShot(this.state, shot, this.physics, true);
     const pendingFalls = result.events.flatMap((e) => (e.type === "fall" ? [e] : []));
     this.anim = { shot, result, frame: 0, acc: 0, pendingFalls, auth, mine };
@@ -246,8 +258,15 @@ export class LocalGame {
   /** Advance playback. Returns true while anything is still moving. */
   update(dtSeconds: number, now: number): boolean {
     this.ghosts = this.ghosts.filter((g) => now - g.start < FALL_MS);
+    let remoteMoving = false;
+    if (this.remoteTarget) {
+      const was = this.remoteShown;
+      this.remoteShown = approachAim(was, this.remoteTarget, dtSeconds);
+      this.remoteAim = this.aimFrom(this.remoteShown);
+      remoteMoving = !was || !aimSettled(was, this.remoteTarget);
+    }
     const anim = this.anim;
-    if (!anim) return this.ghosts.length > 0;
+    if (!anim) return this.ghosts.length > 0 || remoteMoving;
 
     const frames = anim.result.frames!;
     anim.acc += Math.min(dtSeconds, 0.1);
@@ -267,15 +286,15 @@ export class LocalGame {
   }
 
   /** Coins roll a little as they slide. Visual only. */
+  /** Turn the coins as the physics spun them. */
   private spin(from: number, to: number): void {
-    const frames = this.anim!.result.frames!;
-    const a = from === 0 ? null : frames[from - 1];
-    const b = frames[to - 1];
+    const turns = this.anim!.result.turns;
+    if (!turns) return;
+    const a = from === 0 ? null : turns[from - 1];
+    const b = turns[to - 1];
     this.state.coins.forEach((c, i) => {
-      const x0 = a ? a[i * 2] : c.x;
-      const y0 = a ? a[i * 2 + 1] : c.y;
-      const d = Math.hypot(b[i * 2] - x0, b[i * 2 + 1] - y0);
-      if (d > 0) this.rotation.set(c.id, this.rotation.get(c.id)! + d * 0.012 * (c.id % 2 ? 1 : -1));
+      const d = b[i] - (a ? a[i] : 0);
+      if (d !== 0) this.rotation.set(c.id, this.rotation.get(c.id)! + d);
     });
   }
 

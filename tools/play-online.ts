@@ -7,6 +7,7 @@
 // It registers two throwaway players, so run it against a local database, not production.
 
 import { parseArgs } from "node:util";
+import { freeCoinIds } from "../shared/rules";
 import { newRoomCode } from "../shared/room-code";
 import { Bot, me, register, server, sleep } from "./online-bot";
 
@@ -110,6 +111,30 @@ async function main(): Promise<void> {
   const resync = await second.waitFor("welcome", 3000, before);
   check("and the phone is resynced with the real state", resync.state?.shots === 0);
 
+  console.log("\nWatching the other player aim");
+  const coin = started[0].state.shooter ?? [...freeCoinIds(started[0].state.coins)][0];
+  const seen = second.inbox.length;
+  const mine = first.inbox.length;
+  first.send({ t: "aim", seq: 0, coinId: coin, angle: 0.5, power: 0.4 });
+  const relayed = await second.waitFor("aim", 3000, seen);
+  check("the shooter's aim reaches the other player", relayed.by === first.seat && relayed.coinId === coin && relayed.power === 0.4, JSON.stringify(relayed));
+  first.send({ t: "aim_end", seq: 0 });
+  await second.waitFor("aim_end", 3000, seen);
+  second.send({ t: "aim", seq: 0, coinId: coin, angle: 0, power: 0.5 });
+  await sleep(300);
+  check("aiming out of turn is ignored, with no error", !first.inbox.slice(mine).some((m) => m.t === "aim") && !second.inbox.slice(seen).some((m) => m.t === "error"));
+  check("and you don't get your own aim back", !first.inbox.slice(mine).some((m) => m.t === "aim" || m.t === "aim_end"));
+
+  console.log("\nReactions");
+  const beforeReact = [first.inbox.length, second.inbox.length];
+  second.send({ t: "react", r: "nice" });
+  const got = await first.waitFor("react", 3000, beforeReact[0]);
+  check("a reaction reaches the other player", got.by === second.seat && got.r === "nice", JSON.stringify(got));
+  second.send({ t: "react", r: "clap" }); // straight after the first: too soon
+  await sleep(300);
+  check("sending them too quickly is ignored", first.inbox.slice(beforeReact[0]).filter((m) => m.t === "react").length === 1);
+  check("and you don't get your own back", !second.inbox.slice(beforeReact[1]).some((m) => m.t === "react"));
+
   console.log("\nA game, with a dropped connection in the middle");
   ada.autoplay = bea.autoplay = true;
   void ada.maybePlay();
@@ -168,7 +193,22 @@ async function main(): Promise<void> {
   check("two games are on record", adaFinal.games === 2 && beaFinal.games === 2);
   check("ratings still add up", adaFinal.rating + beaFinal.rating === 2000, `${adaFinal.rating} + ${beaFinal.rating}`);
 
-  for (const b of [ada, bea]) b.ws.close(1000);
+  console.log("\nBest of 3");
+  const bo3Room = newRoomCode();
+  const fay = new Bot(srv, "Fay", (await register(srv, `fay_${tag}`)).code, 21);
+  const gus = new Bot(srv, "Gus", (await register(srv, `gus_${tag}`)).code, 22);
+  fay.autoplay = gus.autoplay = false;
+  await fay.connect(bo3Room, "easy", 3);
+  const fw = await fay.waitFor("welcome");
+  check("a room can be made best of 3", fw.room.match.bestOf === 3 && fw.room.match.round === 1, JSON.stringify(fw.room.match));
+  await gus.connect(bo3Room);
+  const [fs] = await Promise.all([fay.waitFor("start"), gus.waitFor("start")]);
+  check("both players are told it's round 1 of a best of 3", fs.match.bestOf === 3 && fs.match.round === 1);
+  gus.send({ t: "resign" });
+  const fo = await fay.waitFor("over");
+  check("resigning loses the whole match", fo.over.winner === fay.seat && fo.over.wins?.[fay.seat] === 2, JSON.stringify(fo.over));
+
+  for (const b of [ada, bea, fay, gus]) b.ws.close(1000);
   console.log(failures === 0 ? "\nAll good.\n" : `\n${failures} check(s) failed.\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

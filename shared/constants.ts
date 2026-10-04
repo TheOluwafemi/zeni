@@ -9,11 +9,11 @@ export const BOARD_SIZE = 1000;
 export const TABLE_RADIUS = BOARD_SIZE / 2;
 export const TABLE_CENTER = BOARD_SIZE / 2;
 export const COIN_RADIUS = 36;
-export const COIN_COUNT = 10;
+export const COIN_COUNT = 14;
 export const CUP_RADIUS = 56;
 
 /** Cups on the table per difficulty. Cups never move and block lines of sight. */
-export const CUPS = { easy: 2, hard: 4 } as const;
+export const CUPS = { easy: 4, hard: 7 } as const;
 export type Difficulty = keyof typeof CUPS;
 
 // Rules
@@ -34,6 +34,11 @@ export interface PhysicsConfig {
   coinRestitution: number; // bounciness of coin-to-coin hits
   cupRestitution: number; // bounciness of coin-to-cup hits
   powerExponent: number; // speed = maxSpeed * power^powerExponent
+  contactFriction: number; // grip between coins: glancing hits throw and spin the struck coin
+  softSpeed: number; // units/s: hits slower than this are less bouncy, so gentle taps don't ping
+  driftSpeed: number; // units/s: below this a coin drifts to a stop more gently...
+  driftFriction: number; // ...with friction scaled by this
+  spinDecay: number; // rad/s² of spin lost to the table
 }
 
 // Tuned by hand with ?tune on a real device. Both the client and the server simulate with these,
@@ -44,4 +49,9 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
   coinRestitution: 0.92,
   cupRestitution: 0.6,
   powerExponent: 1.4,
+  contactFriction: 0.15,
+  softSpeed: 260,
+  driftSpeed: 240,
+  driftFriction: 0.6,
+  spinDecay: 10,
 };

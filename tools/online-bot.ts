@@ -2,7 +2,7 @@
 // Used by play-online.ts (automated checks) and bot-room.ts (to play against from the browser).
 
 import { DEFAULT_PHYSICS } from "../shared/constants";
-import type { ClientMsg, OverInfo, QueueServerMsg, ServerMsg } from "../shared/protocol";
+import { AIM_SEND_MS, type ClientMsg, type OverInfo, type QueueServerMsg, type ServerMsg } from "../shared/protocol";
 import { mulberry32 } from "../shared/rng";
 import type { GameState } from "../shared/types";
 import { botShot } from "./bot";
@@ -43,6 +43,10 @@ export class Bot {
   autoplay = true;
   /** Pause before each shot, so a person watching can follow. */
   thinkMs = 15;
+  /** Send live aim while thinking, as a phone does. */
+  showAim = false;
+  /** Answer a reaction with applause, to try reactions by hand. */
+  reactBack = false;
   private sentFor = -1;
   private rng: () => number;
 
@@ -55,14 +59,14 @@ export class Bot {
     this.rng = mulberry32(seed);
   }
 
-  connect(room: string, create?: "easy" | "hard"): Promise<void> {
+  connect(room: string, create?: "easy" | "hard", bestOf?: 1 | 3): Promise<void> {
     this.closed = null;
     this.ws = new WebSocket(`${this.srv.ws}/ws/room/${room}`);
     this.ws.addEventListener("message", (e) => this.onMessage(JSON.parse(String(e.data)) as ServerMsg));
     this.ws.addEventListener("close", (e) => (this.closed = { code: e.code }));
     return new Promise((resolve, reject) => {
       this.ws.addEventListener("open", () => {
-        this.send({ t: "hello", code: this.playerCode, create });
+        this.send({ t: "hello", code: this.playerCode, create, ...(bestOf === 3 ? { bestOf } : {}) });
         resolve();
       });
       this.ws.addEventListener("error", () => reject(new Error(`${this.name}: socket error`)));
@@ -83,6 +87,7 @@ export class Bot {
     else if (m.t === "shot" || m.t === "turn") this.state = m.state;
     else if (m.t === "over") this.over = m.over;
     if (m.t === "start") this.over = null;
+    if (m.t === "react" && this.reactBack) setTimeout(() => this.send({ t: "react", r: "clap" }), 700);
     void this.maybePlay();
   }
 
@@ -92,8 +97,18 @@ export class Bot {
     if (!this.autoplay || !s || s.status !== "playing" || s.turn !== this.seat || this.over) return;
     if (this.sentFor === s.shots) return;
     this.sentFor = s.shots;
-    await sleep(this.thinkMs);
     const shot = botShot(s, this.rng, 0.1, DEFAULT_PHYSICS);
+    if (this.showAim) {
+      // Line the shot up like a person would: swing in from off to one side while pulling back.
+      const steps = Math.max(1, Math.floor(this.thinkMs / AIM_SEND_MS));
+      const off = (this.rng() - 0.5) * 1.6;
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const ease = 1 - (1 - t) ** 3;
+        this.send({ t: "aim", seq: s.shots, coinId: shot.coinId, angle: shot.angle + off * (1 - ease), power: shot.power * ease });
+        await sleep(AIM_SEND_MS);
+      }
+    } else await sleep(this.thinkMs);
     this.shots++;
     this.send({ t: "shot", seq: s.shots, ...shot });
   }
@@ -128,11 +143,17 @@ export class QueueSocket {
     readonly srv: Server,
     readonly name: string,
     readonly playerCode: string,
+    /** Accept offers straight away, like someone watching the search screen. */
+    readonly autoAccept = true,
   ) {}
 
   join(table: "easy" | "hard"): Promise<void> {
     this.ws = new WebSocket(`${this.srv.ws}/ws/queue/${table}`);
-    this.ws.addEventListener("message", (e) => this.inbox.push(JSON.parse(String(e.data)) as QueueServerMsg));
+    this.ws.addEventListener("message", (e) => {
+      const msg = JSON.parse(String(e.data)) as QueueServerMsg;
+      this.inbox.push(msg);
+      if (msg.t === "offer" && this.autoAccept) this.answer(msg.offer, true);
+    });
     this.ws.addEventListener("close", (e) => (this.closed = { code: e.code }));
     return new Promise((resolve, reject) => {
       this.ws.addEventListener("open", () => {
@@ -145,6 +166,10 @@ export class QueueSocket {
 
   cancel(): void {
     this.ws.send(JSON.stringify({ t: "cancel" }));
+  }
+
+  answer(offer: string, yes: boolean): void {
+    this.ws.send(JSON.stringify({ t: yes ? "accept" : "decline", offer }));
   }
 
   async waitFor<T extends QueueServerMsg["t"]>(t: T, ms = 8000): Promise<Extract<QueueServerMsg, { t: T }>> {
