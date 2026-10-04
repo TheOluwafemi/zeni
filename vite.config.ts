@@ -26,6 +26,8 @@ const siteUrl = (): Plugin => ({
 
 export default defineConfig({
   define: { __BUILD__: JSON.stringify(buildId()) },
+  // The 3D table (three.js) is one lazily loaded chunk of about 570 kB (145 kB gzipped), fetched after Home.
+  build: { chunkSizeWarningLimit: 650 },
   plugins: [
     siteUrl(),
     cloudflare(),
