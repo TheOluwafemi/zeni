@@ -19,6 +19,7 @@ import {
   type Players,
   type ServerMsg,
 } from "../shared/protocol";
+import { lookSeed } from "../shared/avatar";
 import type { ReactionId } from "../shared/reactions";
 import { randomSeed } from "../shared/rng";
 import { legalShot, newGame, other, resolveShot } from "../shared/rules";
@@ -121,7 +122,8 @@ export class RoomCore {
   }
 
   players(): Players {
-    const info = (s: SeatRec | null) => (s ? { nickname: s.nickname, rating: s.rating, connected: s.offlineSince === null } : null);
+    const info = (s: SeatRec | null) =>
+      s ? { nickname: s.nickname, rating: s.rating, connected: s.offlineSince === null, look: lookSeed(s.playerId) } : null;
     return [info(this.rec.seats[0]), info(this.rec.seats[1])];
   }
 

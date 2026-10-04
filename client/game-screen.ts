@@ -1,4 +1,5 @@
 import type { AiLevel } from "../shared/ai";
+import { CHARACTERS, lookFromSeed, lookSeed, type Expression, type Look } from "../shared/avatar";
 import { COIN_RADIUS, DEFAULT_PHYSICS, type Difficulty } from "../shared/constants";
 import { AIM_SEND_MS, TURN_MS, type OverInfo, type Players, type ServerMsg } from "../shared/protocol";
 import { newRoomCode } from "../shared/room-code";
@@ -6,13 +7,17 @@ import { randomSeed } from "../shared/rng";
 import { newGame, other } from "../shared/rules";
 import { tierChange, tierFor } from "../shared/tiers";
 import type { GameState, Seat } from "../shared/types";
+import { currentPlayer } from "./account";
 import { AimThrottle } from "./aim-relay";
+import { avatarSvg } from "./avatar-svg";
 import { sound } from "./audio";
 import { RoomClient, type Fatal, type Link } from "./net";
+import { REACTIONS } from "../shared/reactions";
 import { onReact, showBubble, showReactions } from "./reactions";
 import { tierBadge } from "./tier";
 import { ComputerPlayer } from "./game/computer";
 import { LocalGame, type Resolved } from "./game/local-game";
+import { setOpponentColor } from "./game/overlay";
 import { FlatView, type TableView } from "./game/table-view";
 import type { Table3D } from "./game/table-3d";
 import { mountTuning } from "./tune";
@@ -28,6 +33,7 @@ const COMPUTER_SEAT: Seat = 1;
 const AIM_PREVIEW_MS = 650;
 const FLY_MS = 480;
 const LEVEL_NAMES: Record<AiLevel, string> = { beginner: "Beginner", skilled: "Skilled", master: "Master" };
+const character = () => CHARACTERS[setup.opponent as AiLevel];
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const canvas = $<HTMLCanvasElement>("#board");
@@ -100,7 +106,7 @@ const isComputerTurn = () => vsComputer() && game.state.turn === COMPUTER_SEAT;
 function name(seat: Seat): string {
   if (isOnline()) return isYou(seat) ? "You" : (online?.players[seat]?.nickname ?? "Opponent");
   if (!vsComputer()) return seat === 0 ? "Player 1" : "Player 2";
-  return seat === COMPUTER_SEAT ? "Computer" : "You";
+  return seat === COMPUTER_SEAT ? character().name : "You";
 }
 const keeps = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "keep" : "keeps"}`;
 const gets = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "get" : "gets"}`;
@@ -109,9 +115,62 @@ const goesFirst = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "go" : "goes"} 
 
 // --- Bars and messages ----------------------------------------------------
 
+// --- Avatars ----------------------------------------------------------------
+
+/** Each seat's face right now. They react to shots, then relax. */
+const faces: [Expression, Expression] = ["neutral", "neutral"];
+let relaxTimer = 0;
+
+/** Who each seat looks like, or null for the two players sharing a device. */
+function lookFor(seat: Seat): Look | null {
+  if (isOnline()) {
+    const info = online?.players[seat];
+    return info ? lookFromSeed(info.look) : null;
+  }
+  if (!vsComputer()) return null;
+  if (seat === COMPUTER_SEAT) return character().look;
+  const me = currentPlayer();
+  return me ? lookFromSeed(lookSeed(me.playerId)) : null;
+}
+
+/** The shooter's face after a shot, and the other player's the opposite way. */
+function react(shooter: Seat, face: Expression): void {
+  faces[shooter] = face;
+  faces[other(shooter)] = face === "pleased" ? "dismayed" : "pleased";
+  window.clearTimeout(relaxTimer);
+  const over = game.state.status === "over";
+  if (!over) relaxTimer = window.setTimeout(() => ((faces[0] = faces[1] = "neutral"), updateBars()), 2200);
+  else {
+    const w = game.state.winner;
+    if (w === "draw") faces[0] = faces[1] = "neutral";
+    else ((faces[w as Seat] = "pleased"), (faces[other(w as Seat)] = "dismayed"));
+  }
+  updateBars();
+}
+
+/** Draw the avatars into the bars (only when something changed) and set the opponent's colour. */
+function renderAvatars(): void {
+  bars.forEach((bar, i) => {
+    const seat = i as Seat;
+    const look = lookFor(seat);
+    const slot = bar.querySelector<HTMLElement>(".avatar")!;
+    const key = look ? `${JSON.stringify(look)}:${faces[seat]}` : "";
+    if (slot.dataset.key === key) return;
+    slot.dataset.key = key;
+    slot.innerHTML = look ? avatarSvg(look, faces[seat], { size: 36 }) : "";
+  });
+  // Their colour is their shirt: their aim line and their bubbles.
+  const theirSeat = isOnline() && online ? other(online.seat) : vsComputer() ? COMPUTER_SEAT : null;
+  const theirs = theirSeat === null ? null : lookFor(theirSeat);
+  const colour = theirs?.shirt ?? "#6cc8e0";
+  setOpponentColor(colour);
+  document.documentElement.style.setProperty("--their", colour);
+}
+
 /** Redraw both player bars. A newly kept coin for `awaiting` stays hidden until its flight lands. */
 function updateBars(opts: { thinking?: boolean; awaiting?: Seat } = {}): void {
   const { scores, turn, status } = game.state;
+  renderAvatars();
   showReactions(isOnline() && !!online && online.status !== "waiting" && !!online.players[0] && !!online.players[1]);
   bars.forEach((bar, i) => {
     const seat = i as Seat;
@@ -199,9 +258,15 @@ export function start(next: Setup, rematch = false): void {
   shownPips[0] = shownPips[1] = 0;
   for (const bar of bars) bar.querySelector(".pips")!.replaceChildren();
   $("#game-label").textContent =
-    `${vsComputer() ? `vs ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${setup.difficulty === "easy" ? "Easy table" : "Hard table"}`;
+    `${vsComputer() ? `vs ${character().name} · ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${setup.difficulty === "easy" ? "Easy table" : "Hard table"}`;
+  faces[0] = faces[1] = "neutral";
   updateBars();
   say(`${goesFirst(game.state.turn)} Drag back from a coin and let go.`);
+  // The computer's character says hello (not on a rematch: once is enough).
+  if (vsComputer() && !rematch) {
+    const token = gameToken;
+    window.setTimeout(() => token === gameToken && showBubble(bars[COMPUTER_SEAT], character().line, true, 4200), 350);
+  }
   dirty = true;
   requestAnimationFrame(() => {
     if (view.resize()) dirty = true;
@@ -223,7 +288,7 @@ function showResult(): void {
   const title = winner === "draw" ? "It's a draw" : youWon ? "You win!" : `${name(winner as Seat)} wins`;
   $("#result-title").textContent = title;
   $("#result-score").textContent = vsComputer()
-    ? `You ${scores[0]} – ${scores[1]} Computer`
+    ? `You ${scores[0]} – ${scores[1]} ${character().name}`
     : `Player 1 ${scores[0]} – ${scores[1]} Player 2`;
   const nextFirst = other(firstPlayer);
   $("#result-note").textContent = `In the rematch, ${isYou(nextFirst) ? "you go" : `${name(nextFirst)} goes`} first.`;
@@ -242,6 +307,7 @@ game.onSimEvents = (events) => sound.events(events);
 game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
   const token = gameToken;
   const them = other(shooter);
+  react(shooter, outcome.captured !== null ? "pleased" : "dismayed");
   updateBars({ awaiting: kept ? shooter : undefined });
   const landed = kept ? flyToTray(kept, shooter) : Promise.resolve();
   if (kept) {
@@ -519,7 +585,7 @@ function onServer(msg: ServerMsg): void {
       dirty = true;
       break;
     case "react":
-      showBubble(bars[msg.by], msg.r, true);
+      showBubble(bars[msg.by], REACTIONS[msg.r], true);
       break;
     case "rematch":
       o.rematch = msg.votes;
@@ -664,7 +730,7 @@ async function playComputerTurn(): Promise<void> {
 onReact((r) => {
   if (!online) return;
   online.client.send({ t: "react", r });
-  showBubble(bars[online.seat], r, false);
+  showBubble(bars[online.seat], REACTIONS[r], false);
 });
 
 // --- Input ----------------------------------------------------------------

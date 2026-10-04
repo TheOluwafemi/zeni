@@ -76,9 +76,15 @@ export function drawAim(ctx: CanvasRenderingContext2D, c: Point, aim: Aim, their
   ctx.fill();
 }
 
-/** The other player's aim. Stands in for their shirt colour until avatars arrive. */
-const OPPONENT_COLOR = "#6cc8e0";
-const OPPONENT_BAND = "rgba(108, 200, 224, 0.3)";
+/** The other player's colour: their shirt colour, so it's clear whose aim it is. */
+let OPPONENT_COLOR = "#6cc8e0";
+let OPPONENT_BAND = "rgba(108, 200, 224, 0.3)";
+
+export function setOpponentColor(hex: string): void {
+  OPPONENT_COLOR = hex;
+  const n = parseInt(hex.slice(1), 16);
+  OPPONENT_BAND = `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.3)`;
+}
 
 function powerColor(p: number): string {
   return `hsl(${45 - 45 * p} 92% ${62 - 10 * p}%)`;

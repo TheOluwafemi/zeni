@@ -43,13 +43,14 @@ export function showReactions(visible: boolean): void {
 const bubbles = new Map<Element, { el: HTMLElement; timer: number }>();
 
 /** A speech bubble beside a player's bar. Drawn above everything, so it shows over the result card too. */
-export function showBubble(bar: HTMLElement, r: ReactionId, theirs: boolean): void {
+export function showBubble(bar: HTMLElement, text: string, theirs: boolean, ms = BUBBLE_MS): void {
   bubbles.get(bar)?.el.remove();
   window.clearTimeout(bubbles.get(bar)?.timer);
   const el = document.createElement("div");
   el.className = `bubble${theirs ? " theirs" : ""}`;
   el.setAttribute("role", "status");
-  el.textContent = REACTIONS[r];
+  el.textContent = text;
+  el.style.setProperty("--bubble-ms", `${ms}ms`);
   const rect = bar.getBoundingClientRect();
   const above = rect.top > window.innerHeight / 2; // the bottom bar's bubble sits above it, the top bar's below
   el.style.left = `${Math.max(12, rect.left + 18)}px`;
@@ -60,6 +61,6 @@ export function showBubble(bar: HTMLElement, r: ReactionId, theirs: boolean): vo
   const timer = window.setTimeout(() => {
     el.remove();
     bubbles.delete(bar);
-  }, BUBBLE_MS);
+  }, ms);
   bubbles.set(bar, { el, timer });
 }

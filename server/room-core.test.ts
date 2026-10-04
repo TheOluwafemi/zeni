@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ANIM_GRACE_MS, MAX_TIMEOUTS, parseClientMsg, RECONNECT_MS, ROOM_IDLE_MS, TURN_MS } from "../shared/protocol";
+import { lookSeed } from "../shared/avatar";
 import { mulberry32 } from "../shared/rng";
 import { freeCoinIds } from "../shared/rules";
 import type { Seat } from "../shared/types";
@@ -54,8 +55,8 @@ describe("joining", () => {
     expect(kinds(b.step.out)).toEqual(["start"]);
     expect(core.rec.deadline).toBe(T0 + 5 + TURN_MS + ANIM_GRACE_MS);
     expect(core.players()).toEqual([
-      { nickname: "Ada", rating: 1000, connected: true },
-      { nickname: "Bea", rating: 1100, connected: true },
+      { nickname: "Ada", rating: 1000, connected: true, look: lookSeed("ada") },
+      { nickname: "Bea", rating: 1100, connected: true, look: lookSeed("bea") },
     ]);
   });
 
@@ -93,8 +94,8 @@ describe("a creator who is away when a friend joins (sharing the link means leav
     expect(core.tick(T0 + 3 * MIN + 100).finished).toBe(false); // and certainly no instant forfeit
     expect(core.tick(T0 + 3 * MIN + 31_000).finished).toBe(false); // not even once 30 seconds pass
     expect(core.players()).toEqual([
-      { nickname: "Ada", rating: 1000, connected: false },
-      { nickname: "Bea", rating: 1100, connected: true },
+      { nickname: "Ada", rating: 1000, connected: false, look: lookSeed("ada") },
+      { nickname: "Bea", rating: 1100, connected: true, look: lookSeed("bea") },
     ]);
   });
 

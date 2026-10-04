@@ -23,6 +23,8 @@ export interface PlayerInfo {
   rating: number;
   /** False while the player is dropped and the room is waiting for them to return. */
   connected: boolean;
+  /** Picks their avatar (a hash of their id, so the id itself isn't shared). */
+  look: number;
 }
 export type Players = [PlayerInfo | null, PlayerInfo | null];
 
