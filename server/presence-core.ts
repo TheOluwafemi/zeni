@@ -29,6 +29,11 @@ export class PresenceBook {
     return this.info(now);
   }
 
+  /** A tab that is closing or reloading says goodbye, so a refresh doesn't count as a second visitor. */
+  leave(session: unknown): void {
+    if (isSessionId(session)) this.seen.delete(session);
+  }
+
   setSearching(table: Difficulty, count: number): void {
     this.searching[table] = Math.max(0, Math.floor(count));
   }

@@ -26,8 +26,15 @@ async function ping(): Promise<void> {
   }
 }
 
+/** Say goodbye as the page goes away, so refreshing doesn't count as another person arriving. */
+function leave(): void {
+  const body = new Blob([JSON.stringify({ session, leaving: true })], { type: "application/json" });
+  navigator.sendBeacon?.("/api/presence", body);
+}
+
 export function startPresence(onUpdate: (info: PresenceInfo) => void): void {
   listener = onUpdate;
+  window.addEventListener("pagehide", leave);
   void ping();
   window.setInterval(() => void ping(), PING_MS);
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && void ping());

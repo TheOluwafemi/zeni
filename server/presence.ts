@@ -12,6 +12,10 @@ export class Presence extends DurableObject<Env> {
     return this.book.ping(session, Date.now());
   }
 
+  async leave(session: unknown): Promise<void> {
+    this.book.leave(session);
+  }
+
   /** Called by the Quick Match queues whenever their size changes. */
   async setSearching(table: Difficulty, count: number): Promise<void> {
     this.book.setSearching(table, count);

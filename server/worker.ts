@@ -72,7 +72,11 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 
   // "3 online · 1 looking for a game". Anonymous: the body carries a random id made fresh per tab.
   if (url.pathname === "/api/presence" && request.method === "POST") {
-    const body = (await request.json().catch(() => null)) as { session?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as { session?: unknown; leaving?: unknown } | null;
+    if (body?.leaving === true) {
+      await env.PRESENCE.getByName("global").leave(body.session);
+      return new Response(null, { status: 204 });
+    }
     const info = await env.PRESENCE.getByName("global").ping(body?.session);
     return Response.json(info, { headers: { "cache-control": "no-store" } });
   }

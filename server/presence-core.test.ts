@@ -12,6 +12,14 @@ describe("PresenceBook", () => {
     expect(book.ping(id(2), T0 + 31_000).online).toBe(2);
   });
 
+  test("a tab that says goodbye stops counting at once, so a refresh isn't a second visitor", () => {
+    const book = new PresenceBook();
+    book.ping(id(1), T0);
+    book.leave(id(1));
+    book.leave("not a session"); // ignored
+    expect(book.ping(id(2), T0 + 1_000).online).toBe(1);
+  });
+
   test("forgets a tab that stops pinging", () => {
     const book = new PresenceBook();
     book.ping(id(1), T0);
