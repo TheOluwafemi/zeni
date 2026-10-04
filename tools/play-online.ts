@@ -188,9 +188,14 @@ async function main(): Promise<void> {
   await Promise.all([ada.waitFor("over", 5000, marks.ada), bea.waitFor("over", 5000, marks.bea)]);
   const lastOver = [...ada.inbox].reverse().find((m) => m.t === "over");
   check("resigning loses the game for the resigner", lastOver?.t === "over" && lastOver.over.winner === 0 && lastOver.over.reason === "resign");
+  check(
+    "but resigning before a shot isn't rated, so a second account can't feed rating",
+    lastOver?.t === "over" && lastOver.over.ratings === null && lastOver.over.unrated === "short",
+    JSON.stringify(lastOver),
+  );
 
   const [adaFinal, beaFinal] = await Promise.all([me(srv, adaAcct.code), me(srv, beaAcct.code)]);
-  check("two games are on record", adaFinal.games === 2 && beaFinal.games === 2);
+  check("only the real game is on record", adaFinal.games === 1 && beaFinal.games === 1, `${adaFinal.games}, ${beaFinal.games}`);
   check("ratings still add up", adaFinal.rating + beaFinal.rating === 2000, `${adaFinal.rating} + ${beaFinal.rating}`);
 
   console.log("\nBest of 3");

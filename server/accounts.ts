@@ -5,6 +5,7 @@
 
 import { formatCode, hashCode, newCode, normalizeCode, validateNickname } from "./auth";
 import { markActive } from "./stats";
+import { readJson } from "./http";
 
 /** The slice of D1 this file uses. Declared here so tests can supply a SQLite stand-in. */
 export interface Db {
@@ -94,7 +95,7 @@ async function nicknameTaken(db: Db, nickname: string): Promise<boolean> {
 // --- Routes -----------------------------------------------------------------
 
 async function readBody(request: Request): Promise<Record<string, unknown> | null> {
-  const body: unknown = await request.json().catch(() => null);
+  const body = await readJson(request);
   return body && typeof body === "object" ? (body as Record<string, unknown>) : null;
 }
 

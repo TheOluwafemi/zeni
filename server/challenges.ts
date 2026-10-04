@@ -9,6 +9,7 @@
 
 import { ROOM_IDLE_MS } from "../shared/protocol";
 import { authenticate, allow, type Db, type Player } from "./accounts";
+import { readJson } from "./http";
 
 /** A challenge lasts a little less than an unused room, so its room is always still there. */
 export const CHALLENGE_MS = ROOM_IDLE_MS - 5 * 60_000;
@@ -111,7 +112,7 @@ export async function handleChallenges(
 
   // POST /api/challenges {to: nickname, table} → a new challenge (or the one already open to them)
   if (pathname === "/api/challenges" && method === "POST") {
-    const body = (await request.json().catch(() => null)) as { to?: unknown; table?: unknown; bestOf?: unknown } | null;
+    const body = (await readJson(request)) as { to?: unknown; table?: unknown; bestOf?: unknown } | null;
     const table = body?.table === "hard" ? "hard" : "easy";
     const bestOf = body?.bestOf === 3 ? 3 : 1;
     if (typeof body?.to !== "string" || body.to.length > 32) return fail(400, "unknown_player");

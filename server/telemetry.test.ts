@@ -101,11 +101,16 @@ describe("error logging", () => {
     expect((await rows("SELECT day, count FROM error_log ORDER BY day")).map((r) => [r.day, r.count])).toEqual([["2026-10-03", 1], ["2026-10-04", 1]]);
   });
 
-  test("oversized messages and stacks are cut down", async () => {
-    await post("/api/log", { message: "m".repeat(2000), stack: "s".repeat(9000) });
+  test("long messages and stacks are cut down", async () => {
+    await post("/api/log", { message: "m".repeat(2000), stack: "s".repeat(5000) });
     const [row] = await rows("SELECT message, stack FROM error_log");
     expect(row.message).toHaveLength(300);
     expect(row.stack).toHaveLength(1500);
+  });
+
+  test("bodies over the size limit are refused without being read", async () => {
+    expect((await post("/api/log", { message: "m", stack: "s".repeat(9000) })).status).toBe(400);
+    expect(await rows("SELECT * FROM error_log")).toHaveLength(0);
   });
 
   test("is rate limited, and refuses empty reports", async () => {

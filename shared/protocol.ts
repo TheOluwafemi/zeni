@@ -40,6 +40,8 @@ export interface OverInfo {
   ratings: { before: [number, number]; after: [number, number] } | null;
   /** In a best-of-3, the rounds each player won. */
   wins?: [number, number];
+  /** Why the game didn't change ratings: too short, or these two have already played several today. */
+  unrated?: "short" | "repeat";
 }
 
 /** Where a match stands: a single game, or a best-of-3. */

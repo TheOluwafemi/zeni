@@ -3,6 +3,7 @@
 
 import { allow, authenticate, type Db } from "./accounts";
 import { bump, dayOf } from "./stats";
+import { readJson } from "./http";
 
 export { bump, dayOf, markActive } from "./stats";
 
@@ -66,7 +67,7 @@ export async function logServerError(db: Db, source: ErrorReport["source"], erro
 // --- Routes ----------------------------------------------------------------------
 
 async function readBody(request: Request): Promise<Record<string, unknown> | null> {
-  const body: unknown = await request.json().catch(() => null);
+  const body = await readJson(request);
   return body && typeof body === "object" ? (body as Record<string, unknown>) : null;
 }
 
