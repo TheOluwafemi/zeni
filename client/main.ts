@@ -6,7 +6,7 @@ import { sound } from "./audio";
 import { BUILD, installErrorReporting, ping, pingOpenOnce, setScreen } from "./diagnostics";
 import { openFeedback } from "./feedback";
 import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
-import { start, startOnline, setOnExit, type Opponent } from "./game-screen";
+import { load3D, start, startOnline, setOnExit, type Opponent } from "./game-screen";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
 import { setupInstall } from "./install";
 import { openLeaderboard } from "./leaderboard";
@@ -61,6 +61,10 @@ function play(opponent: Opponent): void {
 }
 
 setOnExit(() => show("home"));
+
+// The 3D table is a separate download: fetch it once Home is up, so the first screen stays quick.
+const idle = window.requestIdleCallback ?? ((fn: () => void) => window.setTimeout(fn, 400));
+idle(() => void load3D());
 
 installErrorReporting();
 pingOpenOnce();

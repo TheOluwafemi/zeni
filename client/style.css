@@ -1337,3 +1337,27 @@ button.danger:hover {
 .board-row .challenge-btn.spacer {
   visibility: hidden;
 }
+
+/* --- The 3D table ------------------------------------------------------------- */
+
+#board-wrap {
+  position: relative;
+}
+
+.board-3d {
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.view-toggle {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}

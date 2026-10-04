@@ -13,8 +13,8 @@ import { onReact, showBubble, showReactions } from "./reactions";
 import { tierBadge } from "./tier";
 import { ComputerPlayer } from "./game/computer";
 import { LocalGame, type Resolved } from "./game/local-game";
-import { Renderer } from "./game/render";
-import { BoardView } from "./game/view";
+import { FlatView, type TableView } from "./game/table-view";
+import type { Table3D } from "./game/table-3d";
 import { mountTuning } from "./tune";
 
 /** Who sits in seat 1: a friend on the same device, the computer at some level, or someone online. */
@@ -44,8 +44,9 @@ const params = new URLSearchParams(location.search);
 const fixedSeed = params.has("seed") ? Number(params.get("seed")) >>> 0 : null;
 const nextSeed = () => fixedSeed ?? randomSeed();
 
-const view = new BoardView(canvas, wrap);
-const renderer = new Renderer(view);
+/** The flat view until the 3D table has loaded (or for good, if this device can't show 3D). */
+let view: TableView = new FlatView(canvas, wrap);
+const viewToggle = $<HTMLButtonElement>("#view-toggle");
 const game = new LocalGame(nextSeed(), "easy");
 let computer: ComputerPlayer | null = null;
 let setup: Setup = { opponent: "friend", difficulty: "easy" };
@@ -153,7 +154,7 @@ function flyToTray(kept: NonNullable<Resolved["kept"]>, seat: Seat): Promise<voi
   const pip = bars[seat].querySelector<HTMLElement>(".pip.awaiting:last-child");
   if (!pip) return Promise.resolve();
   const from = view.toClient(kept.x, kept.y);
-  const size = COIN_RADIUS * 2 * view.cssScale();
+  const size = COIN_RADIUS * 2 * view.cssScale(kept.x, kept.y);
   const to = pip.getBoundingClientRect();
   const coin = document.createElement("div");
   coin.className = `flying-coin metal-${kept.metal}`;
@@ -680,36 +681,48 @@ function shareAim(): void {
   if (sharesAim() && game.aim) aimSender.update({ coinId: game.aim.coinId, angle: game.aim.angle, power: game.aim.power });
 }
 
-canvas.addEventListener("pointerdown", (e) => {
+// Events are on the board's container, so they reach whichever view is showing.
+wrap.addEventListener("pointerdown", (e) => {
+  if (e.target === viewToggle) return;
   sound.unlock();
-  if (aimingPointer !== null || isComputerTurn() || (isOnline() && !online?.client.open)) return;
-  if (!game.startAim(view.toBoard(e.clientX, e.clientY))) return;
+  if (aimingPointer !== null) return;
+  const mayAim = !isComputerTurn() && !(isOnline() && !online?.client.open);
+  const p = view.toBoard(e.clientX, e.clientY);
+  // Press a coin to aim; press anywhere else to turn the table (in 3D).
+  if (!mayAim || !p || !game.startAim(p)) {
+    if (view.beginTurn(e)) view.element.style.cursor = "grabbing";
+    return;
+  }
   aimingPointer = e.pointerId;
   try {
-    canvas.setPointerCapture(e.pointerId);
+    view.element.setPointerCapture(e.pointerId);
   } catch {
     // Synthetic or already-released pointers can't be captured; aiming still works.
   }
-  canvas.style.cursor = "grabbing";
+  view.element.style.cursor = "grabbing";
   shareAim();
   dirty = true;
 });
 
-canvas.addEventListener("pointermove", (e) => {
+wrap.addEventListener("pointermove", (e) => {
   const p = view.toBoard(e.clientX, e.clientY);
   if (e.pointerId === aimingPointer) {
+    if (!p) return; // pointing past the horizon: keep the last aim
     game.moveAim(p);
     shareAim();
     dirty = true;
-  } else if (e.pointerType === "mouse" && aimingPointer === null) {
-    canvas.style.cursor = !isComputerTurn() && game.coinAt(p) ? "grab" : "default";
+  } else if (e.pointerType === "mouse" && aimingPointer === null && !view.moving()) {
+    view.element.style.cursor = !isComputerTurn() && p && game.coinAt(p) ? "grab" : "default";
   }
+});
+wrap.addEventListener("pointerup", () => {
+  if (aimingPointer === null) view.element.style.cursor = "default";
 });
 
 function endAim(e: PointerEvent, fire: boolean): void {
   if (e.pointerId !== aimingPointer) return;
   aimingPointer = null;
-  canvas.style.cursor = "default";
+  view.element.style.cursor = "default";
   const seq = game.state.shots;
   if (fire) game.releaseAim();
   else game.cancelAim();
@@ -719,8 +732,45 @@ function endAim(e: PointerEvent, fire: boolean): void {
   dirty = true;
 }
 
-canvas.addEventListener("pointerup", (e) => endAim(e, true));
-canvas.addEventListener("pointercancel", (e) => endAim(e, false));
+wrap.addEventListener("pointerup", (e) => endAim(e, true));
+wrap.addEventListener("pointercancel", (e) => endAim(e, false));
+
+// --- The 3D table ---------------------------------------------------------
+
+let table3d: Table3D | null = null;
+
+/** Swap in the 3D table once it has loaded. Stays flat if this device can't show 3D. */
+export async function load3D(): Promise<void> {
+  if (table3d) return;
+  try {
+    const { Table3D } = await import("./game/table-3d");
+    const t = new Table3D(wrap);
+    view.dispose();
+    canvas.hidden = true;
+    table3d = t;
+    view = t;
+    view.resize();
+    viewToggle.hidden = false;
+    renderViewToggle();
+    dirty = true;
+  } catch (e) {
+    console.warn("Staying with the flat table:", e);
+  }
+}
+
+function renderViewToggle(): void {
+  const top = table3d?.topDown ?? false;
+  viewToggle.textContent = top ? "Tilt" : "Top view";
+  viewToggle.setAttribute("aria-pressed", String(top));
+  viewToggle.setAttribute("aria-label", top ? "Tilt the table" : "Look straight down");
+}
+
+viewToggle.addEventListener("click", () => {
+  if (!table3d) return;
+  table3d.setTopDown(!table3d.topDown);
+  renderViewToggle();
+  dirty = true;
+});
 
 // --- Loop -----------------------------------------------------------------
 
@@ -737,8 +787,8 @@ function frame(now: number): void {
     lastClock = now;
     updateClock();
   }
-  if (running && (moving || dirty)) {
-    renderer.draw(game, now);
+  if (running && (moving || dirty || view.moving())) {
+    view.draw(game, now);
     dirty = false;
   }
   requestAnimationFrame(frame);
