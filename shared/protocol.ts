@@ -92,10 +92,20 @@ export type ErrorCode =
 
 // --- Quick Match queue -------------------------------------------------------------
 
-export type QueueClientMsg = { t: "queue"; code: string } | { t: "cancel" };
+export type QueueClientMsg =
+  | { t: "queue"; code: string }
+  | { t: "cancel" }
+  /** Say yes or no to an offered match. */
+  | { t: "accept"; offer: string }
+  | { t: "decline"; offer: string };
+
 export type QueueServerMsg =
   | { t: "queued"; waiting: number }
-  /** Two players were paired and a room is ready for them: connect to it. */
+  /** An opponent was found. Accept within `expiresIn` ms, or you leave the queue. */
+  | { t: "offer"; offer: string; table: Difficulty; expiresIn: number; opponent: { nickname: string; rating: number } }
+  /** The offer fell through on the other side; you're back in the queue, in your old place. */
+  | { t: "offer_cancelled"; reason: "declined" | "expired" | "left" | "server" }
+  /** Both accepted and a room is ready: connect to it. */
   | { t: "matched"; room: string; table: Difficulty }
   | { t: "error"; error: ErrorCode };
 
@@ -111,6 +121,7 @@ export function parseQueueMsg(raw: unknown): QueueClientMsg | null {
   const o = m as Record<string, unknown>;
   if (o.t === "queue" && typeof o.code === "string" && o.code.length <= 64) return { t: "queue", code: o.code };
   if (o.t === "cancel") return { t: "cancel" };
+  if ((o.t === "accept" || o.t === "decline") && typeof o.offer === "string" && o.offer.length <= 64) return { t: o.t, offer: o.offer };
   return null;
 }
 

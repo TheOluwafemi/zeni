@@ -1089,3 +1089,96 @@ button.danger:hover {
     animation: none;
   }
 }
+
+/* --- Quick Match in the background ------------------------------------------ */
+
+.queue-pill {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.queue-pill .pulse {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.queue-pill button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  color: var(--muted);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.offer-banner {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  width: min(440px, calc(100% - 32px));
+  padding: 12px 14px;
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  background: var(--panel-2);
+  box-shadow: 0 0 0 1px var(--gold), 0 10px 30px rgba(0, 0, 0, 0.45);
+  transform: translateX(-50%);
+  animation: drop-in 0.25s ease-out;
+}
+
+.offer-banner > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.offer-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+#offer-join {
+  min-width: 92px; /* the countdown doesn't make the button jump */
+}
+
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-pill .pulse,
+  .offer-banner {
+    animation: none;
+  }
+}

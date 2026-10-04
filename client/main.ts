@@ -10,7 +10,7 @@ import { start, startOnline, setOnExit, type Opponent } from "./game-screen";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
 import { setupInstall } from "./install";
 import { openLeaderboard } from "./leaderboard";
-import { openQuickMatch } from "./quick-match";
+import { cancelQuickMatch, openQuickMatch } from "./quick-match";
 import { describePresence, latestPresence, pingSoon, startPresence } from "./presence";
 import { makeCoinSprite } from "./game/sprites";
 
@@ -137,6 +137,7 @@ window.addEventListener(PLAYER_READY, () => {
 });
 
 function joinRoom(code: string): void {
+  cancelQuickMatch(); // going into a friend's room ends any search
   sound.unlock();
   show("game", "online");
   startOnline(code, null);
@@ -160,6 +161,7 @@ $("#open-leaderboard").addEventListener("click", openLeaderboard);
 
 $("#online-create").addEventListener("click", () =>
   needPlayer(() => {
+    cancelQuickMatch();
     sound.unlock();
     show("game", "online");
     startOnline(newRoomCode(), table);

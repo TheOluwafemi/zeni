@@ -128,11 +128,17 @@ export class QueueSocket {
     readonly srv: Server,
     readonly name: string,
     readonly playerCode: string,
+    /** Accept offers straight away, like someone watching the search screen. */
+    readonly autoAccept = true,
   ) {}
 
   join(table: "easy" | "hard"): Promise<void> {
     this.ws = new WebSocket(`${this.srv.ws}/ws/queue/${table}`);
-    this.ws.addEventListener("message", (e) => this.inbox.push(JSON.parse(String(e.data)) as QueueServerMsg));
+    this.ws.addEventListener("message", (e) => {
+      const msg = JSON.parse(String(e.data)) as QueueServerMsg;
+      this.inbox.push(msg);
+      if (msg.t === "offer" && this.autoAccept) this.answer(msg.offer, true);
+    });
     this.ws.addEventListener("close", (e) => (this.closed = { code: e.code }));
     return new Promise((resolve, reject) => {
       this.ws.addEventListener("open", () => {
@@ -145,6 +151,10 @@ export class QueueSocket {
 
   cancel(): void {
     this.ws.send(JSON.stringify({ t: "cancel" }));
+  }
+
+  answer(offer: string, yes: boolean): void {
+    this.ws.send(JSON.stringify({ t: yes ? "accept" : "decline", offer }));
   }
 
   async waitFor<T extends QueueServerMsg["t"]>(t: T, ms = 8000): Promise<Extract<QueueServerMsg, { t: T }>> {
