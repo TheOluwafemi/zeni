@@ -25,7 +25,7 @@ import { DAILY_TABLE, DAILY_TURNS, dailyNumber, dailySeed, shareLine } from "../
 import { mountTuning } from "./tune";
 
 /** Who sits in seat 1: a friend on the same device, the computer at some level, or someone online. */
-export type Opponent = "friend" | AiLevel | "online" | "daily";
+export type Opponent = "friend" | AiLevel | "online" | "daily" | "tutorial";
 export interface Setup {
   opponent: Opponent;
   difficulty: Difficulty;
@@ -115,15 +115,19 @@ export function setOnExit(fn: () => void): void {
 
 const isOnline = () => setup.opponent === "online";
 const isDaily = () => setup.opponent === "daily";
-const vsComputer = () => setup.opponent !== "friend" && setup.opponent !== "online" && !isDaily();
+const isTutorial = () => setup.opponent === "tutorial";
+/** Played alone on this device: the daily puzzle and the tutorial. */
+const solo = () => isDaily() || isTutorial();
+const vsComputer = () => setup.opponent !== "friend" && setup.opponent !== "online" && !solo();
 /** The seat this device plays, or null when everyone shares the device. */
-const youSeat = (): Seat | null => (isOnline() ? (online?.seat ?? null) : vsComputer() || isDaily() ? 0 : null);
+const youSeat = (): Seat | null => (isOnline() ? (online?.seat ?? null) : vsComputer() || solo() ? 0 : null);
 const isYou = (seat: Seat) => youSeat() === seat;
 const isComputerTurn = () => vsComputer() && game.state.turn === COMPUTER_SEAT;
 
 function name(seat: Seat): string {
   if (isOnline()) return isYou(seat) ? "You" : (online?.players[seat]?.nickname ?? "Opponent");
   if (isDaily()) return seat === 0 ? "You" : "The floor";
+  if (isTutorial()) return seat === 0 ? "You" : "Your opponent";
   if (!vsComputer()) return seat === 0 ? "Player 1" : "Player 2";
   return seat === COMPUTER_SEAT ? character().name : "You";
 }
@@ -146,8 +150,8 @@ function lookFor(seat: Seat): Look | null {
     const info = online?.players[seat];
     return info ? lookFromSeed(info.look) : null;
   }
-  if (!vsComputer() && !isDaily()) return null;
-  if (seat === COMPUTER_SEAT) return isDaily() ? null : character().look;
+  if (!vsComputer() && !solo()) return null;
+  if (seat === COMPUTER_SEAT) return solo() ? null : character().look;
   const me = currentPlayer();
   return me ? lookFromSeed(lookSeed(me.playerId)) : null;
 }
@@ -226,6 +230,82 @@ function updateBars(opts: { thinking?: boolean; awaiting?: Seat } = {}): void {
 
 function say(text: string): void {
   message.textContent = text;
+}
+
+// --- The tutorial table ----------------------------------------------------------
+// Three guided shots on the real table: flick, keep one, mind the edge. Each step has a fixed
+// layout and starts again if the shot doesn't do what it asks.
+
+const tutorial = { step: 1 };
+const TUTORIAL = [
+  {
+    title: "Flick",
+    text: "Step 1: press the coin with the gold ring, drag back like a slingshot, and let go. The further you pull, the harder it flies.",
+  },
+  {
+    title: "Keep one",
+    text: "Step 2: hit the other coin with it. Touch exactly one coin and you keep it, then go again with the same coin. Touch two, or none, and your turn ends.",
+  },
+  {
+    title: "Mind the edge",
+    text: "Step 3: keep that coin near the edge without knocking anything off. Coins that fall off go to your opponent, so gently does it. Tea cups block the way, but you can bounce off them.",
+  },
+];
+const tutorialLabel = () => `How to play · Step ${tutorial.step} of ${TUTORIAL.length}: ${TUTORIAL[tutorial.step - 1].title}`;
+
+/** The table for a step: hand-placed coins, the shooting coin ringed in gold. */
+function tutorialTable(step: number): GameState {
+  const base = newGame(1, "easy", 0);
+  const coin = (id: number, x: number, y: number) => ({ id, x, y, vx: 0, vy: 0 });
+  const layouts: Pick<GameState, "coins" | "cups">[] = [
+    { coins: [coin(0, 500, 640)], cups: [] },
+    { coins: [coin(0, 500, 700), coin(1, 500, 470)], cups: [{ x: 300, y: 360 }] },
+    // Close enough to the edge to matter, far enough that a medium flick keeps it on the table.
+    { coins: [coin(0, 440, 500), coin(1, 390, 270)], cups: [{ x: 680, y: 380 }, { x: 250, y: 470 }] },
+  ];
+  return { ...base, ...layouts[step - 1], shooter: 0, turn: 0, scores: [0, 0] };
+}
+
+function tutorialAfterShot(outcome: Resolved["outcome"], token: number): void {
+  const step = tutorial.step;
+  const passed = step === 1 || (outcome.captured !== null && (step === 2 || outcome.fallen.length === 0));
+  if (!passed) {
+    const why =
+      outcome.fallen.length > 0
+        ? "That went off the edge. A little softer."
+        : outcome.touched === 0
+          ? "Didn't touch it. Aim at the other coin, and pull a little further if it stopped short."
+          : "So close. Try again.";
+    const again = TUTORIAL[step - 1].text.replace(/^Step \d: /, "");
+    say(`${why} ${again[0].toUpperCase()}${again.slice(1)}`);
+    window.setTimeout(() => token === gameToken && (game.load(tutorialTable(step)), updateBars(), (dirty = true)), 900);
+    return;
+  }
+  toast(step === 1 ? "Nice flick!" : step === 2 ? "Clean hit! You keep it." : "Perfect!", true);
+  window.setTimeout(() => {
+    if (token !== gameToken) return;
+    if (step === TUTORIAL.length) return finishTutorial();
+    tutorial.step++;
+    game.load(tutorialTable(tutorial.step));
+    shownPips[0] = 0;
+    bars[0].querySelector(".pips")!.replaceChildren();
+    $("#game-label").textContent = tutorialLabel();
+    updateBars();
+    say(TUTORIAL[tutorial.step - 1].text);
+    dirty = true;
+  }, 1100);
+}
+
+function finishTutorial(): void {
+  $("#result-title").textContent = "You're ready!";
+  $("#result-score").textContent = "That's the whole game: flick, keep exactly one, and mind the edge.";
+  $("#result-note").textContent = "Kenta, a barista on his break, is a friendly first opponent.";
+  $("#result-rating").textContent = "";
+  $("#result-tier").replaceChildren();
+  $<HTMLButtonElement>("#rematch").textContent = "Play Kenta";
+  result.hidden = false;
+  sound.win();
+  $<HTMLButtonElement>("#rematch").focus();
 }
 
 // --- The daily puzzle ------------------------------------------------------------
@@ -383,7 +463,11 @@ export function start(next: Setup, rematch = false, nextRound = false): void {
   game.controlledSeat = null;
   game.awaitServer = false;
   firstPlayer = rematch ? other(firstPlayer) : (Math.random() < 0.5 ? 0 : 1);
-  if (isDaily()) {
+  if (isTutorial()) {
+    tutorial.step = 1;
+    firstPlayer = 0;
+    game.load(tutorialTable(1));
+  } else if (isDaily()) {
     // Today's table, the same for everyone, and it's always your turn.
     daily.n = dailyNumber();
     daily.turn = 1;
@@ -392,7 +476,7 @@ export function start(next: Setup, rematch = false, nextRound = false): void {
   } else {
     game.reset(nextSeed(), setup.difficulty, firstPlayer);
   }
-  bars[1].hidden = isDaily();
+  bars[1].hidden = solo();
   result.hidden = true;
   $<HTMLButtonElement>("#rematch").disabled = false;
   $<HTMLButtonElement>("#rematch").textContent = "Rematch";
@@ -400,14 +484,18 @@ export function start(next: Setup, rematch = false, nextRound = false): void {
   $("#result-tier").replaceChildren();
   shownPips[0] = shownPips[1] = 0;
   for (const bar of bars) bar.querySelector(".pips")!.replaceChildren();
-  $("#game-label").textContent = isDaily()
+  $("#game-label").textContent = isTutorial()
+    ? tutorialLabel()
+    : isDaily()
     ? dailyLabel()
     : `${vsComputer() ? `vs ${character().name} · ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${setup.difficulty === "easy" ? "Easy table" : "Hard table"}` +
       roundLabel({ bestOf: setup.bestOf ?? 1, round: localMatch.round, wins: localMatch.wins });
   faces[0] = faces[1] = "neutral";
   updateBars();
   say(
-    isDaily()
+    isTutorial()
+      ? TUTORIAL[0].text
+      : isDaily()
       ? `Keep as many coins as you can in ${DAILY_TURNS} turns. A clean hit lets you go again.${dailyDone() ? " (Practice: today's result is already in.)" : ""}`
       : `${goesFirst(game.state.turn)} Drag back from a coin and let go.`,
   );
@@ -489,6 +577,7 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
     if (youSeat() === null || isYou(shooter)) navigator.vibrate?.(12);
   }
 
+  if (isTutorial()) return tutorialAfterShot(outcome, token);
   if (isDaily()) return dailyAfterShot(outcome, landed, token);
 
   // Online, the server announces the end of the game (with ratings); show the card once the last shot has played.
@@ -529,6 +618,7 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
 
 $("#rematch").addEventListener("click", () => {
   if (isDaily()) return void shareDaily();
+  if (isTutorial()) return start({ opponent: "beginner", difficulty: setup.difficulty }); // "Play Kenta"
   if (isOnline() && online) {
     online.rematch[online.seat] = true; // show it straight away; the server confirms
     online.client.send({ t: "rematch" });

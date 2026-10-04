@@ -195,52 +195,6 @@
       </div>
     </div>
 
-    <!-- How to play -->
-    <div id="howto" class="overlay" hidden>
-      <div class="card dialog howto" role="dialog" aria-modal="true" aria-labelledby="howto-title">
-        <h2 id="howto-title" class="visually-hidden">How to play</h2>
-        <ol class="slides">
-          <li>
-            <svg viewBox="0 0 200 120" aria-hidden="true">
-              <line x1="70" y1="60" x2="22" y2="88" class="band" />
-              <circle cx="22" cy="88" r="7" class="finger" />
-              <circle cx="80" cy="60" r="16" class="coin" />
-              <line x1="104" y1="46" x2="172" y2="8" class="arrow" />
-            </svg>
-            <h3>Flick</h3>
-            <p>Press a coin, drag back like a slingshot, and let go. The further you pull, the harder it flies.</p>
-          </li>
-          <li>
-            <svg viewBox="0 0 200 120" aria-hidden="true">
-              <circle cx="40" cy="60" r="16" class="coin" />
-              <circle cx="78" cy="60" r="16" class="coin kept" />
-              <text x="78" y="28" class="mark ok">✓</text>
-              <circle cx="128" cy="44" r="16" class="coin" />
-              <circle cx="128" cy="78" r="16" class="coin" />
-              <circle cx="166" cy="61" r="16" class="coin dim" />
-              <text x="128" y="114" class="mark no">✕</text>
-            </svg>
-            <h3>Hit exactly one</h3>
-            <p>Touch exactly one coin and you keep it, then go again with the same coin. Touch none, or two, and your turn ends.</p>
-          </li>
-          <li>
-            <svg viewBox="0 0 200 120" aria-hidden="true">
-              <path d="M10 120 A 150 150 0 0 1 150 10" class="edge" />
-              <circle cx="168" cy="40" r="14" class="coin falling" />
-              <circle cx="70" cy="80" r="22" class="cup" />
-              <circle cx="70" cy="80" r="15" class="tea" />
-            </svg>
-            <h3>Mind the edge</h3>
-            <p>Any coin that falls off the table goes to your opponent. Tea cups block your path, but you can bounce off them.</p>
-          </li>
-        </ol>
-        <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div class="row">
-          <button type="button" id="howto-skip" class="ghost">Skip</button>
-          <button type="button" class="primary" id="howto-next">Next</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Create a player -->
     <div id="sheet-create" class="overlay" hidden>

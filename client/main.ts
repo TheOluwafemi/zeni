@@ -23,7 +23,6 @@ import { makeCoinSprite } from "./game/sprites";
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const home = $("#home");
 const gameScreen = $("#game");
-const howto = $("#howto");
 
 // --- Remembered choices (per device; safe if storage is unavailable) ------
 
@@ -64,8 +63,8 @@ function show(screen: "home" | "game", detail = ""): void {
 function play(opponent: Opponent): void {
   sound.unlock();
   if (opponent === "daily") ping("daily_puzzle");
-  else if (opponent !== "friend") ping("computer_game");
-  show("game", opponent === "friend" ? "friend" : "computer");
+  else if (opponent !== "friend" && opponent !== "tutorial") ping("computer_game");
+  show("game", opponent === "friend" || opponent === "daily" || opponent === "tutorial" ? opponent : "computer");
   start({ opponent, difficulty: table, bestOf: bestOf() });
 }
 
@@ -295,37 +294,13 @@ $("#online-join").addEventListener("submit", (e) => {
 });
 joinInput.addEventListener("input", () => (joinStatus.textContent = ""));
 
-// --- How to play ----------------------------------------------------------
+// --- How to play: the tutorial table ---------------------------------------
 
-const slides = [...howto.querySelectorAll<HTMLElement>(".slides li")];
-const dots = [...howto.querySelectorAll<HTMLElement>(".dots span")];
-const next = $<HTMLButtonElement>("#howto-next");
-let slide = 0;
-
-function showSlide(i: number): void {
-  slide = i;
-  slides.forEach((s, j) => (s.hidden = j !== i));
-  dots.forEach((d, j) => d.classList.toggle("on", j === i));
-  next.textContent = i === slides.length - 1 ? "Let's play" : "Next";
-}
-
-function openHowTo(): void {
-  showSlide(0);
-  howto.hidden = false;
-  next.focus();
-}
-
-function closeHowTo(): void {
-  howto.hidden = true;
+function playTutorial(): void {
   save("zeni.seenHowTo", "1");
+  play("tutorial");
 }
-
-next.addEventListener("click", () => (slide < slides.length - 1 ? showSlide(slide + 1) : closeHowTo()));
-$("#howto-skip").addEventListener("click", closeHowTo);
-$("#open-howto").addEventListener("click", openHowTo);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !howto.hidden) closeHowTo();
-});
+$("#open-howto").addEventListener("click", playTutorial);
 
 // --- Start ----------------------------------------------------------------
 
@@ -346,5 +321,6 @@ if (sharedRoom) {
   play(direct as Opponent);
 } else {
   show("home");
-  if (load("zeni.seenHowTo", ["1", "0"] as const, "0") === "0") openHowTo();
+  // First visit: learn on the real table.
+  if (load("zeni.seenHowTo", ["1", "0"] as const, "0") === "0") playTutorial();
 }
