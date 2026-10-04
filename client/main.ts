@@ -1,7 +1,7 @@
 // App shell: home screen, settings, How to Play, and moving between screens.
 
 import { AI_LEVELS, type AiLevel } from "../shared/ai";
-import type { Difficulty } from "../shared/constants";
+import { CUPS, type Difficulty } from "../shared/constants";
 import { sound } from "./audio";
 import { BUILD, installErrorReporting, ping, pingOpenOnce, setScreen } from "./diagnostics";
 import { openFeedback } from "./feedback";
@@ -91,6 +91,11 @@ function bindSegment(group: string, current: string, onPick: (v: string) => void
 }
 
 bindSegment("level", level, (v) => save("zeni.level", (level = v as AiLevel)));
+// "Easy · 4 cups": the counts come from the rules, so the labels can't drift from them.
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="table"] button')) {
+  const d = b.dataset.value as Difficulty;
+  b.textContent = `${d === "easy" ? "Easy" : "Hard"} · ${CUPS[d]} cups`;
+}
 bindSegment("table", table, (v) => {
   save("zeni.table", (table = v as Difficulty));
   renderPresence();
