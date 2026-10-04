@@ -1,11 +1,12 @@
 import type { AiLevel } from "../shared/ai";
 import { COIN_RADIUS, DEFAULT_PHYSICS, type Difficulty } from "../shared/constants";
-import { TURN_MS, type OverInfo, type Players, type ServerMsg } from "../shared/protocol";
+import { AIM_SEND_MS, TURN_MS, type OverInfo, type Players, type ServerMsg } from "../shared/protocol";
 import { newRoomCode } from "../shared/room-code";
 import { randomSeed } from "../shared/rng";
 import { newGame, other } from "../shared/rules";
 import { tierChange, tierFor } from "../shared/tiers";
 import type { GameState, Seat } from "../shared/types";
+import { AimThrottle } from "./aim-relay";
 import { sound } from "./audio";
 import { RoomClient, type Fatal, type Link } from "./net";
 import { tierBadge } from "./tier";
@@ -504,6 +505,14 @@ function onServer(msg: ServerMsg): void {
       updateBars();
       if (!game.animating) showOnlineResult(); // otherwise the last shot's playback shows it when it ends
       break;
+    case "aim":
+      if (msg.by !== o.seat) game.setRemoteAim({ coinId: msg.coinId, angle: msg.angle, power: msg.power });
+      dirty = true;
+      break;
+    case "aim_end":
+      game.setRemoteAim(null);
+      dirty = true;
+      break;
     case "rematch":
       o.rematch = msg.votes;
       renderRematch();
@@ -637,6 +646,16 @@ async function playComputerTurn(): Promise<void> {
 
 let aimingPointer: number | null = null;
 
+/** Online: let the other player watch you aim. */
+const sharesAim = () => isOnline() && online?.status === "playing";
+const aimSender = new AimThrottle(
+  (a) => online?.client.send({ t: "aim", seq: game.state.shots, coinId: a.coinId, angle: a.angle, power: a.power }),
+  AIM_SEND_MS,
+);
+function shareAim(): void {
+  if (sharesAim() && game.aim) aimSender.update({ coinId: game.aim.coinId, angle: game.aim.angle, power: game.aim.power });
+}
+
 canvas.addEventListener("pointerdown", (e) => {
   sound.unlock();
   if (aimingPointer !== null || isComputerTurn() || (isOnline() && !online?.client.open)) return;
@@ -648,6 +667,7 @@ canvas.addEventListener("pointerdown", (e) => {
     // Synthetic or already-released pointers can't be captured; aiming still works.
   }
   canvas.style.cursor = "grabbing";
+  shareAim();
   dirty = true;
 });
 
@@ -655,6 +675,7 @@ canvas.addEventListener("pointermove", (e) => {
   const p = view.toBoard(e.clientX, e.clientY);
   if (e.pointerId === aimingPointer) {
     game.moveAim(p);
+    shareAim();
     dirty = true;
   } else if (e.pointerType === "mouse" && aimingPointer === null) {
     canvas.style.cursor = !isComputerTurn() && game.coinAt(p) ? "grab" : "default";
@@ -665,8 +686,12 @@ function endAim(e: PointerEvent, fire: boolean): void {
   if (e.pointerId !== aimingPointer) return;
   aimingPointer = null;
   canvas.style.cursor = "default";
+  const seq = game.state.shots;
   if (fire) game.releaseAim();
   else game.cancelAim();
+  aimSender.stop();
+  // A shot ends the aim on its own; letting go without shooting needs saying.
+  if (sharesAim() && !game.animating) online?.client.send({ t: "aim_end", seq });
   dirty = true;
 }
 

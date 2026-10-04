@@ -2,7 +2,7 @@
 // Used by play-online.ts (automated checks) and bot-room.ts (to play against from the browser).
 
 import { DEFAULT_PHYSICS } from "../shared/constants";
-import type { ClientMsg, OverInfo, QueueServerMsg, ServerMsg } from "../shared/protocol";
+import { AIM_SEND_MS, type ClientMsg, type OverInfo, type QueueServerMsg, type ServerMsg } from "../shared/protocol";
 import { mulberry32 } from "../shared/rng";
 import type { GameState } from "../shared/types";
 import { botShot } from "./bot";
@@ -43,6 +43,8 @@ export class Bot {
   autoplay = true;
   /** Pause before each shot, so a person watching can follow. */
   thinkMs = 15;
+  /** Send live aim while thinking, as a phone does. */
+  showAim = false;
   private sentFor = -1;
   private rng: () => number;
 
@@ -92,8 +94,18 @@ export class Bot {
     if (!this.autoplay || !s || s.status !== "playing" || s.turn !== this.seat || this.over) return;
     if (this.sentFor === s.shots) return;
     this.sentFor = s.shots;
-    await sleep(this.thinkMs);
     const shot = botShot(s, this.rng, 0.1, DEFAULT_PHYSICS);
+    if (this.showAim) {
+      // Line the shot up like a person would: swing in from off to one side while pulling back.
+      const steps = Math.max(1, Math.floor(this.thinkMs / AIM_SEND_MS));
+      const off = (this.rng() - 0.5) * 1.6;
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const ease = 1 - (1 - t) ** 3;
+        this.send({ t: "aim", seq: s.shots, coinId: shot.coinId, angle: shot.angle + off * (1 - ease), power: shot.power * ease });
+        await sleep(AIM_SEND_MS);
+      }
+    } else await sleep(this.thinkMs);
     this.shots++;
     this.send({ t: "shot", seq: s.shots, ...shot });
   }

@@ -227,6 +227,23 @@ export class RoomCore {
     return { out, finished, expired: false };
   }
 
+  /**
+   * Live aim, passed on to the other player. Nothing changes and nothing is saved. Anything out of
+   * place (not their turn, an old shot number, a coin they can't shoot) is dropped quietly: an aim
+   * arriving just after a shot is normal, not an error worth resending the room for.
+   */
+  aim(seat: Seat, msg: Extract<ClientMsg, { t: "aim" | "aim_end" }>): Out[] {
+    const state = this.rec.state;
+    if (this.rec.status !== "playing" || !state || state.turn !== seat || msg.seq !== state.shots) return [];
+    const to = other(seat);
+    if (msg.t === "aim_end") return [{ to, msg: { t: "aim_end", by: seat } }];
+    const power = Math.min(1, Math.max(0, msg.power));
+    // Aiming starts below shooting power, so check the coin with a power any real shot could have.
+    if (!legalShot(state, seat, { coinId: msg.coinId, angle: msg.angle, power: 1 })) return [];
+    const round = (x: number) => Math.round(x * 1000) / 1000; // plenty for drawing, and keeps messages small
+    return [{ to, msg: { t: "aim", by: seat, coinId: msg.coinId, angle: round(msg.angle), power: round(power) } }];
+  }
+
   resign(seat: Seat, now: number): Step | Failure {
     if (this.rec.status !== "playing") return fail("not_playing");
     this.finish("resign", other(seat), now);

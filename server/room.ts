@@ -6,7 +6,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import type { Difficulty } from "../shared/constants";
-import { parseClientMsg, type ErrorCode, type ServerMsg } from "../shared/protocol";
+import { AIM_MIN_GAP_MS, parseClientMsg, type ClientMsg, type ErrorCode, type ServerMsg } from "../shared/protocol";
 import type { Seat } from "../shared/types";
 import { playerForCode } from "./accounts";
 import { recordResult } from "./ratings";
@@ -32,6 +32,8 @@ const CLOSE_CODES: Partial<Record<ErrorCode, number>> = {
 
 export class Room extends DurableObject<Env> {
   private core: RoomCore | null = null;
+  /** When each seat's last aim update was passed on. In memory only: losing it on hibernation is harmless. */
+  private lastAim: [number, number] = [0, 0];
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -93,6 +95,9 @@ export class Room extends DurableObject<Env> {
         return this.act(ws, seat, (core, now) => core.resign(seat, now));
       case "rematch":
         return this.act(ws, seat, (core, now) => core.rematch(seat, now));
+      case "aim":
+      case "aim_end":
+        return this.aim(seat, msg);
     }
   }
 
@@ -149,6 +154,14 @@ export class Room extends DurableObject<Env> {
       return;
     }
     await this.afterStep(result, now);
+  }
+
+  /** Pass live aim to the other player. Too-frequent updates are dropped (the last one still gets through on the next). */
+  private aim(seat: Seat, msg: Extract<ClientMsg, { t: "aim" | "aim_end" }>): void {
+    const now = Date.now();
+    if (msg.t === "aim" && now - this.lastAim[seat] < AIM_MIN_GAP_MS) return;
+    this.lastAim[seat] = now;
+    if (this.core) this.deliver(this.core.aim(seat, msg));
   }
 
   /** A socket closed or failed. If it was the seat's last one, start the clock on their return. */

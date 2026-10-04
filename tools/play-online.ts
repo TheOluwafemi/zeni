@@ -7,6 +7,7 @@
 // It registers two throwaway players, so run it against a local database, not production.
 
 import { parseArgs } from "node:util";
+import { freeCoinIds } from "../shared/rules";
 import { newRoomCode } from "../shared/room-code";
 import { Bot, me, register, server, sleep } from "./online-bot";
 
@@ -109,6 +110,20 @@ async function main(): Promise<void> {
   check("shooting out of turn is rejected", err.error === "not_your_turn", err.error);
   const resync = await second.waitFor("welcome", 3000, before);
   check("and the phone is resynced with the real state", resync.state?.shots === 0);
+
+  console.log("\nWatching the other player aim");
+  const coin = started[0].state.shooter ?? [...freeCoinIds(started[0].state.coins)][0];
+  const seen = second.inbox.length;
+  const mine = first.inbox.length;
+  first.send({ t: "aim", seq: 0, coinId: coin, angle: 0.5, power: 0.4 });
+  const relayed = await second.waitFor("aim", 3000, seen);
+  check("the shooter's aim reaches the other player", relayed.by === first.seat && relayed.coinId === coin && relayed.power === 0.4, JSON.stringify(relayed));
+  first.send({ t: "aim_end", seq: 0 });
+  await second.waitFor("aim_end", 3000, seen);
+  second.send({ t: "aim", seq: 0, coinId: coin, angle: 0, power: 0.5 });
+  await sleep(300);
+  check("aiming out of turn is ignored, with no error", !first.inbox.slice(mine).some((m) => m.t === "aim") && !second.inbox.slice(seen).some((m) => m.t === "error"));
+  check("and you don't get your own aim back", !first.inbox.slice(mine).some((m) => m.t === "aim" || m.t === "aim_end"));
 
   console.log("\nA game, with a dropped connection in the middle");
   ada.autoplay = bea.autoplay = true;

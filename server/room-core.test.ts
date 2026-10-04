@@ -381,3 +381,47 @@ describe("clocks", () => {
     expect(JSON.stringify(core.rec)).toBe(before);
   });
 });
+
+describe("live aim", () => {
+  function aimFor(core: RoomCore) {
+    const state = core.rec.state!;
+    const coinId = state.shooter ?? [...freeCoinIds(state.coins)][0];
+    return { t: "aim" as const, seq: state.shots, coinId, angle: 1.23456, power: 0.05 };
+  }
+
+  test("the shooter's aim goes to the other player only, rounded, even below shooting power", () => {
+    const { core } = seated();
+    const turn = core.rec.state!.turn;
+    const out = core.aim(turn, aimFor(core));
+    expect(out).toEqual([{ to: turn === 0 ? 1 : 0, msg: { t: "aim", by: turn, coinId: aimFor(core).coinId, angle: 1.235, power: 0.05 } }]);
+  });
+
+  test("stopping aiming is passed on too", () => {
+    const { core } = seated();
+    const turn = core.rec.state!.turn;
+    expect(core.aim(turn, { t: "aim_end", seq: core.rec.state!.shots })).toEqual([{ to: turn === 0 ? 1 : 0, msg: { t: "aim_end", by: turn } }]);
+  });
+
+  test("aim out of turn, from an old shot, or at a coin you can't shoot is dropped quietly", () => {
+    const { core } = seated();
+    const state = core.rec.state!;
+    const waiting = (state.turn === 0 ? 1 : 0) as Seat;
+    expect(core.aim(waiting, aimFor(core))).toEqual([]);
+    expect(core.aim(state.turn, { ...aimFor(core), seq: state.shots - 1 })).toEqual([]);
+    expect(core.aim(state.turn, { ...aimFor(core), coinId: 999 })).toEqual([]);
+  });
+
+  test("nothing is relayed before the game starts", () => {
+    const core = setup();
+    core.join(ada, T0);
+    expect(core.aim(0, { t: "aim", seq: 0, coinId: 0, angle: 0, power: 0.5 })).toEqual([]);
+  });
+
+  test("power is kept between 0 and 1, and aiming changes nothing in the room", () => {
+    const { core } = seated();
+    const before = JSON.stringify(core.rec);
+    const out = core.aim(core.rec.state!.turn, { ...aimFor(core), power: 7 });
+    expect(out[0].msg).toMatchObject({ power: 1 });
+    expect(JSON.stringify(core.rec)).toBe(before);
+  });
+});

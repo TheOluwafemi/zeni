@@ -49,7 +49,16 @@ export type ClientMsg =
   /** `seq` is the number of shots played so far, so a stale or repeated shot is ignored. */
   | { t: "shot"; seq: number; coinId: number; angle: number; power: number }
   | { t: "resign" }
-  | { t: "rematch" };
+  | { t: "rematch" }
+  /** Live aim while lining up a shot, so the opponent can watch. Relayed, never simulated or stored. */
+  | { t: "aim"; seq: number; coinId: number; angle: number; power: number }
+  /** Stopped aiming without shooting (a shot ends the aim on its own). */
+  | { t: "aim_end"; seq: number };
+
+/** How often a phone sends its aim while dragging. */
+export const AIM_SEND_MS = 125;
+/** The room drops aim updates that come faster than this from one player. */
+export const AIM_MIN_GAP_MS = 60;
 
 // --- Server → phone ---------------------------------------------------------------
 
@@ -75,6 +84,9 @@ export type ServerMsg =
   | { t: "turn"; state: GameState; deadlineIn: number; timeouts: number; who: Seat }
   | { t: "over"; over: OverInfo }
   | { t: "rematch"; votes: [boolean, boolean] }
+  /** The other player's live aim. */
+  | { t: "aim"; by: Seat; coinId: number; angle: number; power: number }
+  | { t: "aim_end"; by: Seat }
   | { t: "error"; error: ErrorCode };
 
 export type ErrorCode =
@@ -152,6 +164,12 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
       return { t: "resign" };
     case "rematch":
       return { t: "rematch" };
+    case "aim":
+      if (!Number.isInteger(o.seq) || !Number.isInteger(o.coinId) || !isNum(o.angle) || !isNum(o.power)) return null;
+      return { t: "aim", seq: o.seq as number, coinId: o.coinId as number, angle: o.angle, power: o.power };
+    case "aim_end":
+      if (!Number.isInteger(o.seq)) return null;
+      return { t: "aim_end", seq: o.seq as number };
     default:
       return null;
   }

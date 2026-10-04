@@ -37,6 +37,7 @@ const nickname = args.name ?? `bot_${Math.random().toString(36).slice(2, 7)}`;
 const account = await register(srv, nickname);
 const bot = new Bot(srv, nickname, account.code, Date.now() & 0xffff);
 bot.thinkMs = Number(args.think);
+bot.showAim = true;
 
 let room: string;
 if (args.queue) {
