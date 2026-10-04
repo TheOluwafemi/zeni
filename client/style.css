@@ -1426,3 +1426,33 @@ button.danger:hover {
     transform: translate(-50%, -6px);
   }
 }
+
+/* --- Who to play: the computer's characters ------------------------------------ */
+
+.seg.opponents button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  line-height: 1.15;
+}
+
+.seg.opponents .face svg {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.seg.opponents .who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.seg.opponents small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}

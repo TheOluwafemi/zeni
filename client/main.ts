@@ -2,6 +2,8 @@
 
 import { AI_LEVELS, type AiLevel } from "../shared/ai";
 import { COIN_COUNT, CUPS, type Difficulty } from "../shared/constants";
+import { CHARACTERS } from "../shared/avatar";
+import { avatarSvg } from "./avatar-svg";
 import { dailyNumber } from "../shared/daily";
 import { sound } from "./audio";
 import { BUILD, installErrorReporting, ping, pingOpenOnce, setScreen } from "./diagnostics";
@@ -97,6 +99,16 @@ function bindSegment(group: string, current: string, onPick: (v: string) => void
   sync(current);
 }
 
+// Each level is a character: their face and name on the button, the level beneath.
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="level"] button')) {
+  const lv = b.dataset.value as AiLevel;
+  const c = CHARACTERS[lv];
+  const levelName = b.textContent!.trim();
+  b.innerHTML = `<span class="face">${avatarSvg(c.look, "neutral", { size: 36 })}</span><span class="who"><strong></strong><small></small></span>`;
+  b.querySelector("strong")!.textContent = c.name;
+  b.querySelector("small")!.textContent = levelName;
+  b.setAttribute("aria-label", `${c.name}, ${levelName}`);
+}
 bindSegment("level", level, (v) => save("zeni.level", (level = v as AiLevel)));
 // "Easy · 4 cups": the counts come from the rules, so the labels can't drift from them.
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="table"] button')) {
