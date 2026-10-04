@@ -52,7 +52,7 @@ export function installErrorReporting(): void {
 // --- Anonymous counts ----------------------------------------------------------
 
 /** Tell the server something happened, with no identifier at all. The server only accepts known names. */
-export function ping(name: "open" | "computer_game"): void {
+export function ping(name: "open" | "computer_game" | "daily_puzzle"): void {
   try {
     void fetch("/api/event", {
       method: "POST",

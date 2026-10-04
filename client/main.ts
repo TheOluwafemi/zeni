@@ -1,12 +1,17 @@
 // App shell: home screen, settings, How to Play, and moving between screens.
 
 import { AI_LEVELS, type AiLevel } from "../shared/ai";
-import { CUPS, type Difficulty } from "../shared/constants";
+import { COIN_COUNT, CUPS, type Difficulty } from "../shared/constants";
+import { CHARACTERS } from "../shared/avatar";
+import { avatarSvg } from "./avatar-svg";
+import { dailyNumber } from "../shared/daily";
 import { sound } from "./audio";
 import { BUILD, installErrorReporting, ping, pingOpenOnce, setScreen } from "./diagnostics";
 import { openFeedback } from "./feedback";
 import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
-import { load3D, start, startOnline, setOnExit, type Opponent } from "./game-screen";
+import { load3D, setPlace, start, startOnline, setOnExit, type Opponent } from "./game-screen";
+import { PLACES, placeFor, unlocked } from "../shared/places";
+import { TIERS } from "../shared/tiers";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
 import { setupInstall } from "./install";
 import { openLeaderboard } from "./leaderboard";
@@ -18,7 +23,6 @@ import { makeCoinSprite } from "./game/sprites";
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const home = $("#home");
 const gameScreen = $("#game");
-const howto = $("#howto");
 
 // --- Remembered choices (per device; safe if storage is unavailable) ------
 
@@ -50,6 +54,7 @@ function show(screen: "home" | "game", detail = ""): void {
   home.hidden = screen !== "home";
   gameScreen.hidden = screen !== "game";
   if (screen === "home") {
+    renderDaily();
     void refreshPlayer(); // ratings change after online games
     void refreshChallenges();
   }
@@ -57,8 +62,9 @@ function show(screen: "home" | "game", detail = ""): void {
 
 function play(opponent: Opponent): void {
   sound.unlock();
-  if (opponent !== "friend") ping("computer_game");
-  show("game", opponent === "friend" ? "friend" : "computer");
+  if (opponent === "daily") ping("daily_puzzle");
+  else if (opponent !== "friend" && opponent !== "tutorial") ping("computer_game");
+  show("game", opponent === "friend" || opponent === "daily" || opponent === "tutorial" ? opponent : "computer");
   start({ opponent, difficulty: table, bestOf: bestOf() });
 }
 
@@ -92,6 +98,16 @@ function bindSegment(group: string, current: string, onPick: (v: string) => void
   sync(current);
 }
 
+// Each level is a character: their face and name on the button, the level beneath.
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="level"] button')) {
+  const lv = b.dataset.value as AiLevel;
+  const c = CHARACTERS[lv];
+  const levelName = b.textContent!.trim();
+  b.innerHTML = `<span class="face">${avatarSvg(c.look, "neutral", { size: 36 })}</span><span class="who"><strong></strong><small></small></span>`;
+  b.querySelector("strong")!.textContent = c.name;
+  b.querySelector("small")!.textContent = levelName;
+  b.setAttribute("aria-label", `${c.name}, ${levelName}`);
+}
 bindSegment("level", level, (v) => save("zeni.level", (level = v as AiLevel)));
 // "Easy · 4 cups": the counts come from the rules, so the labels can't drift from them.
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="table"] button')) {
@@ -99,6 +115,54 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="table
   b.textContent = `${d === "easy" ? "Easy" : "Hard"} · ${CUPS[d]} cups`;
 }
 bindSegment("match", match, (v) => save("zeni.match", (match = v as "1" | "3")));
+
+// --- Places: where the table stands. Reaching a tier opens its place. ----------
+
+const placePicker = $("#place-picker");
+const placeNote = $("#place-note");
+let pickedPlace: string | null = (() => {
+  try {
+    return localStorage.getItem("zeni.place");
+  } catch {
+    return null;
+  }
+})();
+
+function renderPlaces(): void {
+  const rating = currentPlayer()?.rating ?? null;
+  const current = placeFor(pickedPlace, rating);
+  setPlace(current.id);
+  placePicker.replaceChildren(
+    ...PLACES.map((p) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      const open = unlocked(p, rating);
+      const tier = TIERS.find((t) => t.id === p.tier)!;
+      b.textContent = open ? p.name : `${p.name} · ${tier.name}`;
+      b.disabled = !open;
+      b.classList.toggle("current", p.id === current.id);
+      b.setAttribute("aria-checked", String(p.id === current.id));
+      if (!open) b.setAttribute("aria-label", `${p.name}, opens when you reach ${tier.name}`);
+      b.addEventListener("click", () => {
+        pickedPlace = p.id;
+        try {
+          localStorage.setItem("zeni.place", p.id);
+        } catch {
+          // Not remembered in private mode.
+        }
+        renderPlaces();
+      });
+      return b;
+    }),
+  );
+  const locked = PLACES.find((p) => !unlocked(p, rating));
+  placeNote.textContent = locked
+    ? `Win online games to reach ${TIERS.find((t) => t.id === locked.tier)!.name} and open the ${locked.name.toLowerCase()}.`
+    : "";
+}
+renderPlaces();
+window.addEventListener(PLAYER_READY, renderPlaces);
 bindSegment("table", table, (v) => {
   save("zeni.table", (table = v as Difficulty));
   renderPresence();
@@ -112,6 +176,25 @@ startPresence(renderPresence);
 
 $("#play-computer").addEventListener("click", () => play(level));
 $("#play-friend").addEventListener("click", () => play("friend"));
+$("#play-daily").addEventListener("click", () => play("daily"));
+
+/** "Daily puzzle #4", with today's result once you've played it. */
+function renderDaily(): void {
+  const n = dailyNumber();
+  $("#daily-title").textContent = `Daily puzzle #${n}`;
+  let done: { n: number; kept: number } | null = null;
+  try {
+    done = JSON.parse(localStorage.getItem("zeni.daily") ?? "null");
+  } catch {
+    // Nothing stored.
+  }
+  const today = done?.n === n ? done : null;
+  $("#daily-text").textContent = today
+    ? `Today you kept ${today.kept} of ${COIN_COUNT}. A new table at midnight UTC.`
+    : "The same table for everyone today. Keep as many coins as you can in 3 turns.";
+  $("#play-daily").textContent = today ? "Practise today's table" : "Play today's puzzle";
+}
+renderDaily();
 
 const soundButton = $<HTMLButtonElement>("#toggle-sound");
 function syncSound(): void {
@@ -211,37 +294,13 @@ $("#online-join").addEventListener("submit", (e) => {
 });
 joinInput.addEventListener("input", () => (joinStatus.textContent = ""));
 
-// --- How to play ----------------------------------------------------------
+// --- How to play: the tutorial table ---------------------------------------
 
-const slides = [...howto.querySelectorAll<HTMLElement>(".slides li")];
-const dots = [...howto.querySelectorAll<HTMLElement>(".dots span")];
-const next = $<HTMLButtonElement>("#howto-next");
-let slide = 0;
-
-function showSlide(i: number): void {
-  slide = i;
-  slides.forEach((s, j) => (s.hidden = j !== i));
-  dots.forEach((d, j) => d.classList.toggle("on", j === i));
-  next.textContent = i === slides.length - 1 ? "Let's play" : "Next";
-}
-
-function openHowTo(): void {
-  showSlide(0);
-  howto.hidden = false;
-  next.focus();
-}
-
-function closeHowTo(): void {
-  howto.hidden = true;
+function playTutorial(): void {
   save("zeni.seenHowTo", "1");
+  play("tutorial");
 }
-
-next.addEventListener("click", () => (slide < slides.length - 1 ? showSlide(slide + 1) : closeHowTo()));
-$("#howto-skip").addEventListener("click", closeHowTo);
-$("#open-howto").addEventListener("click", openHowTo);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !howto.hidden) closeHowTo();
-});
+$("#open-howto").addEventListener("click", playTutorial);
 
 // --- Start ----------------------------------------------------------------
 
@@ -262,5 +321,6 @@ if (sharedRoom) {
   play(direct as Opponent);
 } else {
   show("home");
-  if (load("zeni.seenHowTo", ["1", "0"] as const, "0") === "0") openHowTo();
+  // First visit: learn on the real table.
+  if (load("zeni.seenHowTo", ["1", "0"] as const, "0") === "0") playTutorial();
 }

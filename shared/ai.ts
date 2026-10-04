@@ -27,14 +27,17 @@ interface LevelSpec {
   robustSamples: number;
   /** How much to avoid leaving easy shots for the opponent (0 = not at all). */
   defend: number;
+  /** Aim error is multiplied by this while continuing a run (after a capture), so lower levels
+   *  don't clear the table in one turn. */
+  runNerves: number;
 }
 
 const LEVELS: Record<AiLevel, LevelSpec> = {
   // Tuned against real play: earlier Master kept ~3 coins a turn and felt unbeatable.
   // Targets: about 0.6 / 1.0 / 1.6 coins kept per turn.
-  beginner: { aimNoise: 0.18, powerNoise: 0.3, pickFrom: 6, robustTop: 0, robustSamples: 0, defend: 0 },
-  skilled: { aimNoise: 0.09, powerNoise: 0.16, pickFrom: 2, robustTop: 6, robustSamples: 3, defend: 0.5 },
-  master: { aimNoise: 0.08, powerNoise: 0.14, pickFrom: 1, robustTop: 12, robustSamples: 5, defend: 1 },
+  beginner: { aimNoise: 0.18, powerNoise: 0.3, pickFrom: 6, robustTop: 0, robustSamples: 0, defend: 0, runNerves: 2.2 },
+  skilled: { aimNoise: 0.09, powerNoise: 0.16, pickFrom: 2, robustTop: 6, robustSamples: 3, defend: 0.5, runNerves: 2.3 },
+  master: { aimNoise: 0.08, powerNoise: 0.14, pickFrom: 1, robustTop: 12, robustSamples: 5, defend: 1, runNerves: 1.15 },
 };
 
 /**
@@ -42,6 +45,8 @@ const LEVELS: Record<AiLevel, LevelSpec> = {
  * coins there. Shakier aim on that table keeps each level about as strong on both.
  */
 const EASY_TABLE_AIM: Record<AiLevel, number> = { beginner: 1.7, skilled: 2.5, master: 2.1 };
+/** On the hard table, Skilled's cautious checks found too many safe runs: a little shakier there. */
+const HARD_TABLE_AIM: Record<AiLevel, number> = { beginner: 1, skilled: 1.65, master: 1 };
 
 const CUT_FRACTIONS = [-0.5, -0.25, 0, 0.25, 0.5];
 const FOLLOW_THROUGH = [40, 160, 360];
@@ -172,7 +177,11 @@ export function chooseShot(
   cfg: PhysicsConfig = DEFAULT_PHYSICS,
 ): Shot {
   const base = LEVELS[level];
-  const spec = { ...base, aimNoise: base.aimNoise * (state.difficulty === "easy" ? EASY_TABLE_AIM[level] : 1) };
+  const inRun = state.shooter !== null;
+  const spec = {
+    ...base,
+    aimNoise: base.aimNoise * (state.difficulty === "easy" ? EASY_TABLE_AIM : HARD_TABLE_AIM)[level] * (inRun ? base.runNerves : 1),
+  };
   const me = state.turn;
   const scored = candidates(state, cfg)
     .map((shot) => ({ shot, v: evaluate(state, shot, me, spec, cfg) }))

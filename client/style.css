@@ -440,118 +440,6 @@ button.ghost:hover {
   font-weight: 600;
 }
 
-/* How to play */
-
-.slides {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.slides svg {
-  width: 100%;
-  max-width: 260px;
-  height: auto;
-  margin-bottom: 8px;
-}
-
-.slides h3 {
-  margin: 0 0 6px;
-  font-family: var(--title);
-  font-size: 1.5rem;
-}
-
-.slides p {
-  min-height: 4.2em;
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.4;
-}
-
-.dots {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin: 16px 0;
-}
-
-.dots span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--line);
-}
-
-.dots span.on {
-  background: var(--gold);
-}
-
-.howto svg .coin {
-  fill: #b8733a;
-  stroke: #5e3215;
-  stroke-width: 2;
-}
-
-.howto svg .coin.kept {
-  fill: #c49a45;
-}
-
-.howto svg .coin.dim {
-  opacity: 0.45;
-}
-
-.howto svg .coin.falling {
-  opacity: 0.6;
-}
-
-.howto svg .band {
-  stroke: rgba(243, 230, 211, 0.35);
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-
-.howto svg .finger {
-  fill: rgba(243, 230, 211, 0.25);
-  stroke: rgba(243, 230, 211, 0.6);
-  stroke-width: 2;
-}
-
-.howto svg .arrow {
-  stroke: var(--gold);
-  stroke-width: 4;
-  stroke-dasharray: 9 7;
-  stroke-linecap: round;
-}
-
-.howto svg .mark {
-  font-size: 22px;
-  font-weight: 700;
-  text-anchor: middle;
-}
-
-.howto svg .mark.ok {
-  fill: #9bd18a;
-}
-
-.howto svg .mark.no {
-  fill: #e88a7a;
-}
-
-.howto svg .edge {
-  fill: none;
-  stroke: #8a5a33;
-  stroke-width: 8;
-  stroke-linecap: round;
-}
-
-.howto svg .cup {
-  fill: #d9d1bd;
-}
-
-.howto svg .tea {
-  fill: #6f7a22;
-}
-
 /* Tier badges: a small coin in each tier's metal, with the square hole of a mon */
 
 .badge {
@@ -1425,4 +1313,34 @@ button.danger:hover {
   from {
     transform: translate(-50%, -6px);
   }
+}
+
+/* --- Who to play: the computer's characters ------------------------------------ */
+
+.seg.opponents button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  line-height: 1.15;
+}
+
+.seg.opponents .face svg {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.seg.opponents .who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.seg.opponents small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
 }

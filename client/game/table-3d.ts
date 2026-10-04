@@ -20,11 +20,13 @@ import {
   LatheGeometry,
   Mesh,
   MeshBasicMaterial,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
   Plane,
   PlaneGeometry,
   Raycaster,
+  RepeatWrapping,
   Scene,
   Shape,
   SRGBColorSpace,
@@ -37,7 +39,9 @@ import {
 } from "three";
 import type { Expression, Look } from "../../shared/avatar";
 import { BOARD_SIZE, COIN_RADIUS, CUP_RADIUS, TABLE_RADIUS } from "../../shared/constants";
+import type { PlaceId } from "../../shared/places";
 import { avatarSvg } from "../avatar-svg";
+import { placeArt } from "./place-art";
 import { FALL_MS, type LocalGame } from "./local-game";
 import { drawAim, drawForcedRing } from "./overlay";
 import { makeCoinSprite, METAL_COUNT } from "./sprites";
@@ -67,6 +71,12 @@ const OVERLAY_UNITS = BOARD_SIZE + OVERLAY_MARGIN * 2;
 const OVERLAY_PX = 1024;
 
 const VIEW_KEY = "zeni.view";
+/** The backdrop: a painted flat this tall (and twice as wide), this far behind the table's far edge. */
+const BACKDROP_H = 1500;
+const BACKDROP_DISTANCE = 650;
+/** How much of the camera's downward angle the backdrop leans back by. */
+const BACKDROP_LEAN = 0.7;
+const BACKDROP_SINK = 620;
 /** The opponent's cut-out, in board units. */
 const CUTOUT_SIZE = 300;
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -172,6 +182,18 @@ export class Table3D implements TableView {
   private lastDraw = 0;
   private turning: { id: number; x: number } | null = null;
 
+  // The place.
+  private place: PlaceId | null = null;
+  private readonly fill = new HemisphereLight(0xfff3e0, 0x3a2414, 1.6);
+  private readonly key = new DirectionalLight(0xffe3bd, 2.2);
+  /** Varnished: a clear coat over the wood gives it a soft shine, as a real table has. */
+  private readonly tableTop = new MeshPhysicalMaterial({ roughness: 0.5, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.35 });
+  private readonly tableSide = new MeshStandardMaterial({ color: 0x3b2213, roughness: 0.6 });
+  private readonly floorMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
+  private readonly floor = new Mesh(new PlaneGeometry(9000, 9000), this.floorMat);
+  private readonly backdropMat = new MeshBasicMaterial({ transparent: true });
+  private readonly backdrop = new Mesh(new PlaneGeometry(BACKDROP_H * 2, BACKDROP_H), this.backdropMat);
+
   /** The opponent, sitting across the table: a flat cut-out, like a pop-up book. */
   private readonly cutout: Mesh;
   private readonly cutoutMat: MeshBasicMaterial;
@@ -193,10 +215,8 @@ export class Table3D implements TableView {
     this.elevTarget = this.elev = this.topDown ? TOP : TILT;
 
     // Light: a warm key from the top-left (where the 2D sheen comes from) and a soft room fill.
-    this.scene.add(new HemisphereLight(0xfff3e0, 0x3a2414, 1.6));
-    const key = new DirectionalLight(0xffe3bd, 2.2);
-    key.position.set(-500, 1100, -450);
-    this.scene.add(key);
+    this.scene.add(this.fill, this.key);
+    this.key.position.set(-500, 1100, -450);
 
     this.buildTable();
 
@@ -269,14 +289,23 @@ export class Table3D implements TableView {
     this.cutout.rotateX(this.lean); // leans in over the table on their turn
     // Looking straight down there's no one across the table to see.
     this.cutoutMat.opacity = Math.max(0, Math.min(1, (TOP - this.elev) / (TOP - TILT) * 1.6));
+    // The backdrop stands further back, behind them, like a stage set.
+    const back = TABLE_RADIUS + BACKDROP_DISTANCE;
+    // Sunk partly below the floor (which hides that part), so the painting's middle is what you see.
+    this.backdrop.position.set(-Math.sin(this.yaw) * back, BACKDROP_H / 2 - 454 - BACKDROP_SINK, -Math.cos(this.yaw) * back);
+    this.backdrop.rotation.set(0, this.yaw, 0);
+    // Lean it back toward the camera, which looks down steeply, so the painting faces the view.
+    this.backdrop.rotateX(-this.elev * BACKDROP_LEAN);
+    this.backdropMat.opacity = this.cutoutMat.opacity;
   }
 
   private buildTable(): void {
     const wood = new CanvasTexture(woodTexture());
     wood.colorSpace = SRGBColorSpace;
     wood.anisotropy = 8;
-    const top = new MeshStandardMaterial({ map: wood, roughness: 0.55, metalness: 0 });
-    const side = new MeshStandardMaterial({ color: 0x3b2213, roughness: 0.6 });
+    const top = this.tableTop;
+    top.map = wood;
+    const side = this.tableSide;
     const slab = new Mesh(new CylinderGeometry(TABLE_RADIUS, TABLE_RADIUS - 8, 34, 120), [side, top, side]);
     slab.position.y = -17;
     // A rounded-over lip around the top.
@@ -292,8 +321,50 @@ export class Table3D implements TableView {
       new MeshBasicMaterial({ map: radialTexture("rgba(0,0,0,0.75)", "rgba(0,0,0,0)"), transparent: true, depthWrite: false }),
     );
     floorShadow.rotation.x = -Math.PI / 2;
-    floorShadow.position.y = -454;
+    floorShadow.position.y = -453;
     this.scene.add(slab, lip, pedestal, floorShadow);
+
+    // The place: a floor all round, and a painted backdrop standing behind the opponent.
+    this.floor.rotation.x = -Math.PI / 2;
+    this.floor.position.y = -454;
+    this.floor.visible = false;
+    this.backdrop.visible = false;
+    this.scene.add(this.floor, this.backdrop);
+  }
+
+  /** Move the table to a place: its finish, floor, backdrop and light. */
+  setPlace(id: PlaceId): void {
+    if (id === this.place) return;
+    this.place = id;
+    const art = placeArt(id);
+    const tex = (c: HTMLCanvasElement, repeat = 1) => {
+      const t = new CanvasTexture(c);
+      t.colorSpace = SRGBColorSpace;
+      t.anisotropy = 8;
+      if (repeat !== 1) {
+        t.wrapS = t.wrapT = RepeatWrapping;
+        t.repeat.set(repeat, repeat);
+      }
+      return t;
+    };
+    this.tableTop.map?.dispose();
+    this.tableTop.map = tex(art.tableTop);
+    this.tableTop.needsUpdate = true;
+    this.tableSide.color.setHex(art.tableSide);
+    this.floorMat.map?.dispose();
+    this.floorMat.map = tex(art.floor, art.floorRepeat);
+    this.floorMat.needsUpdate = true;
+    this.floor.visible = true;
+    this.backdropMat.map?.dispose();
+    this.backdropMat.map = tex(art.backdrop);
+    this.backdropMat.needsUpdate = true;
+    this.backdrop.visible = true;
+    this.fill.color.setHex(art.light.sky);
+    this.fill.groundColor.setHex(art.light.ground);
+    this.fill.intensity = art.light.fill;
+    this.key.color.setHex(art.light.key);
+    this.key.intensity = art.light.keyIntensity;
+    this.freshTexture = true;
   }
 
   // --- The view ---------------------------------------------------------------

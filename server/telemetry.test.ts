@@ -140,7 +140,7 @@ describe("anonymous counters", () => {
     await post("/api/event", { name: "make_me_rich" }); // ignored
     await post("/api/event", { name: 5 }); // ignored
     const counts = Object.fromEntries((await rows("SELECT name, count FROM daily_counters")).map((r) => [r.name, r.count]));
-    expect(counts).toEqual({ open: 2, computer_game: 1 });
+    expect(counts).toEqual({ open: 2, computer_game: 1, daily_puzzle: 1 });
   });
 
   test("keep a separate count for each day", async () => {
