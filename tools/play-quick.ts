@@ -6,6 +6,7 @@
 // It registers throwaway players, so run it against a local database, not production.
 
 import { parseArgs } from "node:util";
+import { CUPS } from "../shared/constants";
 import { Bot, QueueSocket, register, server, sleep } from "./online-bot";
 
 const { values: args } = parseArgs({ options: { base: { type: "string", default: "http://localhost:5173" } } });
@@ -79,7 +80,7 @@ async function main(): Promise<void> {
   await beaBot.connect(room);
   const [s1, s2] = await Promise.all([adaBot.waitFor("start"), beaBot.waitFor("start")]);
   check("the game starts when both are in", s1.state.turn === s2.state.turn);
-  check("with the table they queued for", s1.state.cups.length === 2, `cups: ${s1.state.cups.length}`);
+  check("with the table they queued for", s1.state.cups.length === CUPS.easy, `cups: ${s1.state.cups.length}`);
 
   beaBot.send({ t: "resign" });
   await Promise.all([adaBot.waitFor("over"), beaBot.waitFor("over")]);

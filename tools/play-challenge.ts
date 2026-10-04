@@ -6,6 +6,7 @@
 // It registers throwaway players, so run it against a local database, not production.
 
 import { parseArgs } from "node:util";
+import { CUPS } from "../shared/constants";
 import { Bot, register, server, sleep } from "./online-bot";
 
 const { values: args } = parseArgs({ options: { base: { type: "string", default: "http://localhost:5173" } } });
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
 
   await beaBot.connect(room);
   const [s] = await Promise.all([adaBot.waitFor("start"), beaBot.waitFor("start")]);
-  check("the game starts once both are there, on the table chosen", s.state.cups.length === 4, `cups: ${s.state.cups.length}`);
+  check("the game starts once both are there, on the table chosen", s.state.cups.length === CUPS.hard, `cups: ${s.state.cups.length}`);
   await sleep(300);
   const after = [await call("/api/me/challenges", ada.code), await call("/api/me/challenges", bea.code)];
   check("once it starts, the challenge leaves both lists", after[0].body.outgoing.length === 0 && after[1].body.incoming.length === 0, JSON.stringify(after.map((a) => a.body)));
