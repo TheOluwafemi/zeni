@@ -43,7 +43,10 @@
     { "name": "PRESENCE_LIMIT", "namespace_id": "1003", "simple": { "limit": 20, "period": 60 } }
   ],
   "observability": {
-    "enabled": true
+    "enabled": true,
+    // Keep our own error logs, but not a log of every request: those would hold visitors' internet
+    // addresses for days, and the privacy page promises addresses are only used for rate limits.
+    "logs": { "invocation_logs": false }
   },
   // Staging: a separate Worker (zeni-staging) and database, for trying v2 before it reaches players.
   // Build it with CLOUDFLARE_ENV=staging (npm run deploy:staging). Bindings are repeated here because
@@ -79,7 +82,8 @@
         { "name": "PRESENCE_LIMIT", "namespace_id": "2003", "simple": { "limit": 20, "period": 60 } }
       ],
       "observability": {
-        "enabled": true
+        "enabled": true,
+        "logs": { "invocation_logs": false }
       }
     }
   }
