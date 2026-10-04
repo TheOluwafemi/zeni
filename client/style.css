@@ -148,9 +148,11 @@ button.ghost:hover {
 
 /* Home: a slim top bar, two big ways to play, and everything else one tap away. */
 
+/* Home uses the whole window: one column on phones, the play tiles side by side from 560px, and a
+   main area with a side column from 900px. Capped at a comfortable width on very large screens. */
 #home {
   gap: 0;
-  max-width: 520px;
+  max-width: 1200px;
   overflow-y: auto;
 }
 
@@ -1568,4 +1570,89 @@ button.danger:hover {
 /* No empty gaps on Home where a message would go. */
 .home-body .status:empty {
   display: none;
+}
+
+.home-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (min-width: 900px) {
+  #home {
+    padding-right: max(32px, env(safe-area-inset-right));
+    padding-left: max(32px, env(safe-area-inset-left));
+  }
+
+  .home-top {
+    padding: 16px 0 28px;
+  }
+
+  .home-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    grid-template-areas:
+      "climb side"
+      "tiles side"
+      "settings side"
+      "links side"
+      "install side"
+      "hint side"
+      "footer footer";
+    grid-template-rows: auto auto auto auto auto 1fr auto;
+    gap: 16px 28px;
+    align-items: start;
+  }
+
+  #player-climb {
+    grid-area: climb;
+    margin-top: 0;
+  }
+
+  .play-tiles {
+    grid-area: tiles;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-line {
+    grid-area: settings;
+  }
+
+  .home-side {
+    grid-area: side;
+  }
+
+  .quick-links {
+    grid-area: links;
+  }
+
+  #install {
+    grid-area: install;
+  }
+
+  #ios-hint {
+    grid-area: hint;
+  }
+
+  .home-links {
+    grid-area: footer;
+    padding-top: 24px;
+  }
+
+  /* More room: bigger tiles. */
+  .tile {
+    padding: 24px;
+  }
+
+  .tile-online {
+    min-height: 280px;
+  }
+
+  .tile-title {
+    font-size: 2.6rem;
+  }
+
+  .tile-computer {
+    justify-content: space-between;
+  }
 }

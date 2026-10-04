@@ -79,24 +79,27 @@
           <span aria-hidden="true">›</span>
         </button>
 
-        <button type="button" class="daily-banner" id="play-daily">
-          <span class="daily-coin" aria-hidden="true">🪙</span>
-          <span class="daily-text">
-            <strong id="daily-title">Daily puzzle</strong>
-            <span id="daily-text">Same table for everyone today</span>
-          </span>
-          <span class="daily-cta" id="daily-cta">Play</span>
-        </button>
+        <!-- Beside the main area on wide screens, below it on narrow ones. -->
+        <aside class="home-side">
+          <button type="button" class="daily-banner" id="play-daily">
+            <span class="daily-coin" aria-hidden="true">🪙</span>
+            <span class="daily-text">
+              <strong id="daily-title">Daily puzzle</strong>
+              <span id="daily-text">Same table for everyone today</span>
+            </span>
+            <span class="daily-cta" id="daily-cta">Play</span>
+          </button>
 
-        <div id="challenges" class="challenges" hidden>
-          <h3 class="sub">Challenges</h3>
-          <ul class="challenge-list"></ul>
-        </div>
-        <div id="recent" class="challenges" hidden>
-          <h3 class="sub">Play again</h3>
-          <ul class="challenge-list"></ul>
-        </div>
-        <p id="challenge-status" class="status bad" aria-live="polite"></p>
+          <div id="challenges" class="challenges" hidden>
+            <h3 class="sub">Challenges</h3>
+            <ul class="challenge-list"></ul>
+          </div>
+          <div id="recent" class="challenges" hidden>
+            <h3 class="sub">Play again</h3>
+            <ul class="challenge-list"></ul>
+          </div>
+          <p id="challenge-status" class="status bad" aria-live="polite"></p>
+        </aside>
 
         <nav class="quick-links" aria-label="More">
           <button type="button" id="open-friend">Play a friend</button>
