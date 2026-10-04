@@ -49,7 +49,8 @@ export default defineConfig({
       },
       workbox: {
         // Online features live under /api and /ws; never serve those from the app shell.
-        navigateFallbackDenylist: [/^\/api\//, /^\/ws\//, /^\/privacy\.html$/],
+        // /privacy is a real page (the host serves privacy.html there), not part of the game.
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws\//, /^\/privacy(\.html)?\/?$/],
         globPatterns: ["**/*.{js,css,html,svg,png,webp}"],
         // The link-preview picture is for chat apps and social sites, not for the installed game.
         globIgnores: ["og.png"],
