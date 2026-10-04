@@ -13,6 +13,8 @@ export const TURN_MS = 20_000;
 export const ANIM_GRACE_MS = 800;
 /** A dropped player has this long to come back before they forfeit. */
 export const RECONNECT_MS = 30_000;
+/** In a best-of-3, the pause between rounds (after the last shot has played). */
+export const ROUND_BREAK_MS = 4000;
 /** Missing this many turns in a row forfeits the game. */
 export const MAX_TIMEOUTS = 3;
 /** A room nobody joins, or a finished one nobody uses, is deleted after this long. */
@@ -23,6 +25,8 @@ export interface PlayerInfo {
   rating: number;
   /** False while the player is dropped and the room is waiting for them to return. */
   connected: boolean;
+  /** Picks their avatar (a hash of their id, so the id itself isn't shared). */
+  look: number;
 }
 export type Players = [PlayerInfo | null, PlayerInfo | null];
 
@@ -34,19 +38,33 @@ export interface OverInfo {
   scores: [number, number];
   /** Ratings before and after, once the server has recorded the result. */
   ratings: { before: [number, number]; after: [number, number] } | null;
+  /** In a best-of-3, the rounds each player won. */
+  wins?: [number, number];
+}
+
+/** Where a match stands: a single game, or a best-of-3. */
+export interface MatchInfo {
+  bestOf: 1 | 3;
+  /** The round being played (1 for a single game). */
+  round: number;
+  /** Rounds won so far. */
+  wins: [number, number];
 }
 
 export interface RoomInfo {
   code: string;
   table: Difficulty;
   status: "waiting" | "playing" | "over";
+  match: MatchInfo;
+  /** Between rounds of a best-of-3: milliseconds until the next round starts. */
+  nextRoundIn: number | null;
 }
 
 // --- Phone → server ---------------------------------------------------------------
 
 export type ClientMsg =
   /** First message on every connection. `create` opens a new room with that table. */
-  | { t: "hello"; code: string; create?: Difficulty }
+  | { t: "hello"; code: string; create?: Difficulty; bestOf?: 1 | 3 }
   /** `seq` is the number of shots played so far, so a stale or repeated shot is ignored. */
   | { t: "shot"; seq: number; coinId: number; angle: number; power: number }
   | { t: "resign" }
@@ -80,7 +98,9 @@ export type ServerMsg =
     }
   | { t: "players"; players: Players }
   /** A game began (the second player arrived, or both agreed to a rematch). */
-  | { t: "start"; state: GameState; deadlineIn: number; players: Players }
+  | { t: "start"; state: GameState; deadlineIn: number; players: Players; match: MatchInfo }
+  /** A round of a best-of-3 ended and the match goes on: the next round starts in `nextIn` ms. */
+  | { t: "round_over"; winner: Seat | "draw"; match: MatchInfo; nextIn: number }
   /** A shot was played. `state` is the authoritative result; phones animate and then snap to it. */
   | { t: "shot"; seq: number; by: Seat; shot: Shot; state: GameState; outcome: ShotOutcome; animMs: number; deadlineIn: number }
   /** A player ran out of time and the turn passed. */
@@ -160,7 +180,8 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
     case "hello":
       if (typeof o.code !== "string" || o.code.length > 64) return null;
       if (o.create !== undefined && o.create !== "easy" && o.create !== "hard") return null;
-      return { t: "hello", code: o.code, create: o.create };
+      if (o.bestOf !== undefined && o.bestOf !== 1 && o.bestOf !== 3) return null;
+      return { t: "hello", code: o.code, create: o.create, ...(o.bestOf === 3 ? { bestOf: 3 as const } : {}) };
     case "shot":
       if (!Number.isInteger(o.seq) || !Number.isInteger(o.coinId) || !isNum(o.angle) || !isNum(o.power)) return null;
       return { t: "shot", seq: o.seq as number, coinId: o.coinId as number, angle: o.angle, power: o.power };

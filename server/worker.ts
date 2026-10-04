@@ -84,7 +84,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     request,
     url,
     env.DB,
-    (code, table, players) => env.ROOM.getByName(code).open(code, table, players, "challenge"),
+    (code, table, players, bestOf) => env.ROOM.getByName(code).open(code, table, players, "challenge", bestOf),
     newRoomCode,
   );
   if (challenges) return challenges;

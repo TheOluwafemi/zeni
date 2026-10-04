@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ANIM_GRACE_MS, MAX_TIMEOUTS, parseClientMsg, RECONNECT_MS, ROOM_IDLE_MS, TURN_MS } from "../shared/protocol";
+import { lookSeed } from "../shared/avatar";
 import { mulberry32 } from "../shared/rng";
 import { freeCoinIds } from "../shared/rules";
 import type { Seat } from "../shared/types";
@@ -54,8 +55,8 @@ describe("joining", () => {
     expect(kinds(b.step.out)).toEqual(["start"]);
     expect(core.rec.deadline).toBe(T0 + 5 + TURN_MS + ANIM_GRACE_MS);
     expect(core.players()).toEqual([
-      { nickname: "Ada", rating: 1000, connected: true },
-      { nickname: "Bea", rating: 1100, connected: true },
+      { nickname: "Ada", rating: 1000, connected: true, look: lookSeed("ada") },
+      { nickname: "Bea", rating: 1100, connected: true, look: lookSeed("bea") },
     ]);
   });
 
@@ -93,8 +94,8 @@ describe("a creator who is away when a friend joins (sharing the link means leav
     expect(core.tick(T0 + 3 * MIN + 100).finished).toBe(false); // and certainly no instant forfeit
     expect(core.tick(T0 + 3 * MIN + 31_000).finished).toBe(false); // not even once 30 seconds pass
     expect(core.players()).toEqual([
-      { nickname: "Ada", rating: 1000, connected: false },
-      { nickname: "Bea", rating: 1100, connected: true },
+      { nickname: "Ada", rating: 1000, connected: false, look: lookSeed("ada") },
+      { nickname: "Bea", rating: 1100, connected: true, look: lookSeed("bea") },
     ]);
   });
 
@@ -444,5 +445,102 @@ describe("reactions", () => {
     expect(parseClientMsg('{"t":"react","r":"gg"}')).toEqual({ t: "react", r: "gg" });
     expect(parseClientMsg('{"t":"react","r":"you stink"}')).toBeNull();
     expect(parseClientMsg('{"t":"react","r":"toString"}')).toBeNull();
+  });
+});
+
+describe("best of 3", () => {
+  function bo3() {
+    const core = new RoomCore(newRoom("K7QXM", "easy", T0, null, undefined, 3), () => 42);
+    const a = core.join(ada, T0);
+    const b = core.join(bea, T0);
+    if (isFailure(a) || isFailure(b)) throw new Error("join failed");
+    return core;
+  }
+
+  /** End the current round with `winner` ahead: one coin left, shot off the edge. */
+  function endRound(core: RoomCore, winner: Seat, now: number) {
+    const s = core.rec.state!;
+    const turn = s.turn;
+    core.rec.state = {
+      ...s,
+      coins: [{ id: 0, x: 500, y: 500, vx: 0, vy: 0 }],
+      cups: [],
+      shooter: null,
+      scores: winner === 0 ? [6, 0] : [0, 6],
+    };
+    const r = core.shot(turn, { t: "shot", seq: s.shots, coinId: 0, angle: 0, power: 1 }, now);
+    if (isFailure(r)) throw new Error(r.error);
+    return r;
+  }
+
+  test("a round won leaves the match going, then the next round starts with the other player first", () => {
+    const core = bo3();
+    const first = core.rec.firstSeat;
+    const r = endRound(core, 0, T0 + 1000);
+    expect(r.finished).toBe(false);
+    const roundOver = r.out.find((o) => o.msg.t === "round_over")!.msg;
+    expect(roundOver).toMatchObject({ winner: 0, match: { bestOf: 3, round: 1, wins: [1, 0] } });
+    expect(core.rec.status).toBe("playing");
+
+    // Nothing happens until the break is over.
+    const breakEnds = core.nextWake()!;
+    expect(core.tick(breakEnds - 1).out).toEqual([]);
+    const next = core.tick(breakEnds);
+    expect(next.out[0].msg).toMatchObject({ t: "start", match: { round: 2, wins: [1, 0] } });
+    expect(core.rec.firstSeat).toBe(first === 0 ? 1 : 0);
+  });
+
+  test("two rounds won ends the match, with the rounds in the result", () => {
+    const core = bo3();
+    endRound(core, 1, T0 + 1000);
+    core.tick(core.nextWake()!);
+    const r = endRound(core, 1, T0 + 20_000);
+    expect(r.finished).toBe(true);
+    expect(core.rec.over).toMatchObject({ winner: 1, reason: "normal", wins: [0, 2] });
+  });
+
+  test("a drawn round doesn't count", () => {
+    const core = bo3();
+    const s = core.rec.state!;
+    // The last coin falls off to the other player, making it 3–3.
+    core.rec.state = { ...s, coins: [{ id: 0, x: 500, y: 500, vx: 0, vy: 0 }], cups: [], shooter: null, scores: s.turn === 0 ? [3, 2] : [2, 3] };
+    const r = core.shot(s.turn, { t: "shot", seq: s.shots, coinId: 0, angle: 0, power: 1 }, T0 + 1000);
+    if (isFailure(r)) throw new Error(r.error);
+    expect(r.out.find((o) => o.msg.t === "round_over")!.msg).toMatchObject({ winner: "draw", match: { wins: [0, 0] } });
+  });
+
+  test("resigning loses the whole match", () => {
+    const core = bo3();
+    endRound(core, 0, T0 + 1000);
+    core.tick(core.nextWake()!);
+    core.resign(0, T0 + 20_000);
+    expect(core.rec.over).toMatchObject({ winner: 1, reason: "resign", wins: [1, 2] });
+  });
+
+  test("a rematch starts a fresh match", () => {
+    const core = bo3();
+    endRound(core, 0, T0 + 1000);
+    core.tick(core.nextWake()!);
+    endRound(core, 0, T0 + 20_000);
+    core.rematch(0, T0 + 30_000);
+    const r = core.rematch(1, T0 + 30_000);
+    expect(isFailure(r) ? null : r.out[0].msg).toMatchObject({ t: "start", match: { bestOf: 3, round: 1, wins: [0, 0] } });
+  });
+
+  test("a single game is unchanged: it ends at the first result", () => {
+    const { core } = seated();
+    const s = core.rec.state!;
+    core.rec.state = { ...s, coins: [{ id: 0, x: 500, y: 500, vx: 0, vy: 0 }], shooter: null, scores: [6, 0] };
+    const r = core.shot(s.turn, { t: "shot", seq: s.shots, coinId: 0, angle: 0, power: 1 }, T0 + 1000);
+    expect(isFailure(r) ? null : r.finished).toBe(true);
+    expect(core.rec.over?.wins).toBeUndefined();
+  });
+
+  test("the room tells phones how the match stands", () => {
+    const core = bo3();
+    endRound(core, 0, T0 + 1000);
+    const w = core.welcome(0, T0 + 1500);
+    expect(w).toMatchObject({ room: { match: { bestOf: 3, round: 1, wins: [1, 0] } } });
+    expect((w as { room: { nextRoundIn: number } }).room.nextRoundIn).toBeGreaterThan(0);
   });
 });

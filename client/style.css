@@ -286,20 +286,29 @@ button.ghost:hover {
   font-weight: 600;
 }
 
+/* Kept coins stack up into a column, seen side-on: the taller stack is ahead. */
 .pips {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
-  gap: 4px;
-  justify-content: flex-end;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  justify-content: flex-start;
+  align-self: center;
+  /* A fixed height, so a tall stack pokes up a little instead of making the bar taller. */
+  height: 32px;
 }
 
 .pip {
-  width: 14px;
-  height: 14px;
+  flex: none;
+  width: 22px;
+  height: 8px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #f6d08e, #b8733a 60%, #5e3215);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(#f6d08e, #c98a45 45%, #7a4219);
+  box-shadow: 0 1px 0 #3a1d0a, inset 0 1px 0 rgba(255, 240, 210, 0.6);
+}
+
+.pip + .pip {
+  margin-bottom: -5.5px;
 }
 
 .pip.awaiting {
@@ -1215,13 +1224,13 @@ button.danger:hover {
   font-weight: 600;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
   pointer-events: none;
-  animation: bubble-in 0.2s ease-out, bubble-out 0.3s ease-in 2.3s forwards;
+  animation: bubble-in 0.2s ease-out, bubble-out 0.3s ease-in calc(var(--bubble-ms, 2600ms) - 300ms) forwards;
 }
 
-/* The other player's bubbles use their colour (the same as their live aim). */
+/* The other player's bubbles use their colour: their shirt, the same as their live aim. */
 .bubble.theirs {
-  background: #6cc8e0;
-  color: #0f2a33;
+  background: var(--their, #6cc8e0);
+  color: #1a1208;
 }
 
 .bubble::after {
@@ -1242,7 +1251,7 @@ button.danger:hover {
 }
 
 .bubble.theirs {
-  --bubble-tail: #6cc8e0;
+  --bubble-tail: var(--their, #6cc8e0);
 }
 
 /* Grows in rather than fading in, so a paused animation can't leave it invisible. */
@@ -1260,7 +1269,7 @@ button.danger:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .bubble {
-    animation: bubble-out 0.3s ease-in 2.3s forwards;
+    animation: bubble-out 0.3s ease-in calc(var(--bubble-ms, 2600ms) - 300ms) forwards;
   }
 }
 
@@ -1360,4 +1369,60 @@ button.danger:hover {
   padding: 4px 12px;
   font-size: 0.8rem;
   opacity: 0.85;
+}
+
+/* --- Avatars ------------------------------------------------------------------ */
+
+.player .avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin: -4px 0;
+}
+
+.player .avatar:empty {
+  display: none;
+}
+
+.player .avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--line);
+}
+
+.player.active .avatar svg {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--gold);
+}
+
+/* --- Toasts --------------------------------------------------------------------- */
+
+.toast {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 2;
+  max-width: calc(100% - 24px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(24, 14, 7, 0.82);
+  color: var(--fg);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: toast-in 0.18s ease-out;
+}
+
+.toast.good {
+  color: var(--gold);
+}
+
+@keyframes toast-in {
+  from {
+    transform: translate(-50%, -6px);
+  }
 }

@@ -35,7 +35,9 @@ import {
   type Material,
   type Texture,
 } from "three";
+import type { Expression, Look } from "../../shared/avatar";
 import { BOARD_SIZE, COIN_RADIUS, CUP_RADIUS, TABLE_RADIUS } from "../../shared/constants";
+import { avatarSvg } from "../avatar-svg";
 import { FALL_MS, type LocalGame } from "./local-game";
 import { drawAim, drawForcedRing } from "./overlay";
 import { makeCoinSprite, METAL_COUNT } from "./sprites";
@@ -65,6 +67,8 @@ const OVERLAY_UNITS = BOARD_SIZE + OVERLAY_MARGIN * 2;
 const OVERLAY_PX = 1024;
 
 const VIEW_KEY = "zeni.view";
+/** The opponent's cut-out, in board units. */
+const CUTOUT_SIZE = 300;
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const toWorld = (x: number, y: number, h = 0) => new Vector3(x - HALF, h, y - HALF);
@@ -168,6 +172,15 @@ export class Table3D implements TableView {
   private lastDraw = 0;
   private turning: { id: number; x: number } | null = null;
 
+  /** The opponent, sitting across the table: a flat cut-out, like a pop-up book. */
+  private readonly cutout: Mesh;
+  private readonly cutoutMat: MeshBasicMaterial;
+  private cutoutKey = "";
+  private lean = 0;
+  private leanTarget = 0;
+  /** A new texture arrived since the last frame (avatar images load asynchronously). */
+  private freshTexture = false;
+
   constructor(container: HTMLElement) {
     this.element = document.createElement("canvas");
     this.element.className = "board-3d";
@@ -213,6 +226,49 @@ export class Table3D implements TableView {
     overlay.position.y = COIN_THICK + 1;
     overlay.renderOrder = 10; // always on top, as in the flat view
     this.scene.add(overlay);
+
+    this.cutoutMat = new MeshBasicMaterial({ transparent: true, alphaTest: 0.02, side: DoubleSide });
+    this.cutout = new Mesh(new PlaneGeometry(CUTOUT_SIZE, CUTOUT_SIZE), this.cutoutMat);
+    this.cutout.visible = false;
+    this.scene.add(this.cutout);
+  }
+
+  setOpponent(look: Look | null, face: Expression, theirTurn: boolean): void {
+    this.leanTarget = theirTurn ? 0.12 : 0;
+    const key = look ? `${JSON.stringify(look)}:${face}` : "";
+    if (key === this.cutoutKey) return;
+    this.cutoutKey = key;
+    if (!look) {
+      this.cutout.visible = false;
+      return;
+    }
+    // Draw the SVG into a canvas, then use that as the cut-out's picture.
+    const img = new Image();
+    img.onload = () => {
+      if (this.cutoutKey !== key) return; // a newer face arrived meanwhile
+      const c = document.createElement("canvas");
+      c.width = c.height = 512;
+      c.getContext("2d")!.drawImage(img, 0, 0, 512, 512);
+      const t = new CanvasTexture(c);
+      t.colorSpace = SRGBColorSpace;
+      this.cutoutMat.map?.dispose();
+      this.cutoutMat.map = t;
+      this.cutoutMat.needsUpdate = true;
+      this.cutout.visible = true;
+      this.freshTexture = true;
+    };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarSvg(look, face, { cutout: true, size: 512 }))}`;
+  }
+
+  /** Keep the opponent across the table from wherever you're looking, facing you. */
+  private placeCutout(dt: number): void {
+    this.lean += (this.leanTarget - this.lean) * (1 - Math.exp(-6 * dt));
+    const away = TABLE_RADIUS + 70;
+    this.cutout.position.set(-Math.sin(this.yaw) * away, CUTOUT_SIZE * 0.5 - 95, -Math.cos(this.yaw) * away);
+    this.cutout.rotation.set(0, this.yaw, 0);
+    this.cutout.rotateX(this.lean); // leans in over the table on their turn
+    // Looking straight down there's no one across the table to see.
+    this.cutoutMat.opacity = Math.max(0, Math.min(1, (TOP - this.elev) / (TOP - TILT) * 1.6));
   }
 
   private buildTable(): void {
@@ -283,7 +339,13 @@ export class Table3D implements TableView {
   }
 
   moving(): boolean {
-    return this.turning !== null || Math.abs(this.elev - this.elevTarget) > 1e-4 || Math.abs(this.yaw - this.yawTarget) > 1e-4;
+    return (
+      this.turning !== null ||
+      this.freshTexture ||
+      Math.abs(this.elev - this.elevTarget) > 1e-4 ||
+      Math.abs(this.yaw - this.yawTarget) > 1e-4 ||
+      Math.abs(this.lean - this.leanTarget) > 1e-3
+    );
   }
 
   private placeCamera(dt: number): void {
@@ -296,14 +358,18 @@ export class Table3D implements TableView {
     // Far enough back that the whole table fits, whichever way the screen is shaped.
     const v = (FOV * Math.PI) / 180 / 2;
     const hHalf = Math.atan(Math.tan(v) * this.camera.aspect);
-    // The table is a flat disc: from above it must fit both ways; tilted, it's shorter on screen, so
-    // only the width limits it, and the margin in FIT_RADIUS is more than enough, so come in a little.
+    // The table is a flat disc: from above it must fit both ways. Tilted, it's shorter on screen, but
+    // the opponent sits up behind it, so stand back a little to fit them both.
     const across = Math.tan(hHalf);
     const down = Math.tan(v) / Math.max(Math.sin(this.elev), 0.01);
-    const d = (FIT_RADIUS * (1 - 0.13 * Math.cos(this.elev))) / Math.min(across, down);
+    const d = (FIT_RADIUS * (1 + 0.1 * Math.cos(this.elev))) / Math.min(across, down);
     const flat = d * Math.cos(this.elev);
-    this.camera.position.set(flat * Math.sin(this.yaw), d * Math.sin(this.elev), flat * Math.cos(this.yaw));
-    this.camera.lookAt(0, 0, 0);
+    // Tilted, aim a little past the centre so there's headroom for whoever sits across the table.
+    const ahead = 195 * Math.cos(this.elev);
+    const tx = -Math.sin(this.yaw) * ahead;
+    const tz = -Math.cos(this.yaw) * ahead;
+    this.camera.position.set(tx + flat * Math.sin(this.yaw), d * Math.sin(this.elev), tz + flat * Math.cos(this.yaw));
+    this.camera.lookAt(tx, 0, tz);
   }
 
   beginTurn(e: PointerEvent): boolean {
@@ -365,6 +431,8 @@ export class Table3D implements TableView {
     const dt = this.lastDraw ? Math.min(0.1, (now - this.lastDraw) / 1000) : 0;
     this.lastDraw = now;
     this.placeCamera(dt);
+    this.placeCutout(dt);
+    this.freshTexture = false;
     this.syncCups(game);
     this.syncCoins(game);
     this.syncGhosts(game, now);

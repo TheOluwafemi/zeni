@@ -286,15 +286,15 @@ export class LocalGame {
   }
 
   /** Coins roll a little as they slide. Visual only. */
+  /** Turn the coins as the physics spun them. */
   private spin(from: number, to: number): void {
-    const frames = this.anim!.result.frames!;
-    const a = from === 0 ? null : frames[from - 1];
-    const b = frames[to - 1];
+    const turns = this.anim!.result.turns;
+    if (!turns) return;
+    const a = from === 0 ? null : turns[from - 1];
+    const b = turns[to - 1];
     this.state.coins.forEach((c, i) => {
-      const x0 = a ? a[i * 2] : c.x;
-      const y0 = a ? a[i * 2 + 1] : c.y;
-      const d = Math.hypot(b[i * 2] - x0, b[i * 2 + 1] - y0);
-      if (d > 0) this.rotation.set(c.id, this.rotation.get(c.id)! + d * 0.012 * (c.id % 2 ? 1 : -1));
+      const d = b[i] - (a ? a[i] : 0);
+      if (d !== 0) this.rotation.set(c.id, this.rotation.get(c.id)! + d);
     });
   }
 

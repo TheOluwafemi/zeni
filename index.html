@@ -53,6 +53,10 @@
             <button type="button" role="radio" data-value="easy">Easy · 2 cups</button>
             <button type="button" role="radio" data-value="hard">Hard · 4 cups</button>
           </div>
+          <div class="seg" role="radiogroup" aria-label="Match" data-group="match">
+            <button type="button" role="radio" data-value="1">Single game</button>
+            <button type="button" role="radio" data-value="3">Best of 3</button>
+          </div>
         </div>
 
         <div class="card" id="player-card">
@@ -133,6 +137,7 @@
 
       <section class="player" data-seat="1">
         <span class="turn-dot" aria-hidden="true"></span>
+        <span class="avatar" aria-hidden="true"></span>
         <span class="badge-slot"></span>
         <span class="name"></span>
         <span class="rating-chip"></span>
@@ -144,10 +149,12 @@
       <div id="board-wrap">
         <canvas id="board" aria-label="Game table"></canvas>
         <button type="button" id="view-toggle" class="view-toggle" hidden>Top view</button>
+        <div id="toast" class="toast" role="status" hidden></div>
       </div>
 
       <section class="player" data-seat="0">
         <span class="turn-dot" aria-hidden="true"></span>
+        <span class="avatar" aria-hidden="true"></span>
         <span class="badge-slot"></span>
         <span class="name"></span>
         <span class="rating-chip"></span>

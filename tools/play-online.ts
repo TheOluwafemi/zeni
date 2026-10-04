@@ -193,7 +193,22 @@ async function main(): Promise<void> {
   check("two games are on record", adaFinal.games === 2 && beaFinal.games === 2);
   check("ratings still add up", adaFinal.rating + beaFinal.rating === 2000, `${adaFinal.rating} + ${beaFinal.rating}`);
 
-  for (const b of [ada, bea]) b.ws.close(1000);
+  console.log("\nBest of 3");
+  const bo3Room = newRoomCode();
+  const fay = new Bot(srv, "Fay", (await register(srv, `fay_${tag}`)).code, 21);
+  const gus = new Bot(srv, "Gus", (await register(srv, `gus_${tag}`)).code, 22);
+  fay.autoplay = gus.autoplay = false;
+  await fay.connect(bo3Room, "easy", 3);
+  const fw = await fay.waitFor("welcome");
+  check("a room can be made best of 3", fw.room.match.bestOf === 3 && fw.room.match.round === 1, JSON.stringify(fw.room.match));
+  await gus.connect(bo3Room);
+  const [fs] = await Promise.all([fay.waitFor("start"), gus.waitFor("start")]);
+  check("both players are told it's round 1 of a best of 3", fs.match.bestOf === 3 && fs.match.round === 1);
+  gus.send({ t: "resign" });
+  const fo = await fay.waitFor("over");
+  check("resigning loses the whole match", fo.over.winner === fay.seat && fo.over.wins?.[fay.seat] === 2, JSON.stringify(fo.over));
+
+  for (const b of [ada, bea, fay, gus]) b.ws.close(1000);
   console.log(failures === 0 ? "\nAll good.\n" : `\n${failures} check(s) failed.\n`);
   process.exit(failures === 0 ? 0 : 1);
 }

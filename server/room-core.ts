@@ -7,18 +7,21 @@
 import { DEFAULT_PHYSICS, DT, type Difficulty } from "../shared/constants";
 import { simulateShot } from "../shared/physics";
 import {
+  ROUND_BREAK_MS,
   ANIM_GRACE_MS,
   MAX_TIMEOUTS,
   RECONNECT_MS,
   ROOM_IDLE_MS,
   TURN_MS,
   type ClientMsg,
+  type MatchInfo,
   type ErrorCode,
   type OverInfo,
   type OverReason,
   type Players,
   type ServerMsg,
 } from "../shared/protocol";
+import { lookSeed } from "../shared/avatar";
 import type { ReactionId } from "../shared/reactions";
 import { randomSeed } from "../shared/rng";
 import { legalShot, newGame, other, resolveShot } from "../shared/rules";
@@ -52,6 +55,12 @@ export interface RoomRec {
   reserved?: [string, string] | null;
   /** How a reserved room came about. Missing on rooms saved before challenges existed (they were Quick Match). */
   kind?: "quick" | "challenge";
+  /** A single game (missing) or a best-of-3, and how the match stands. */
+  bestOf?: 1 | 3;
+  round?: number;
+  wins?: [number, number];
+  /** Between rounds: when the next one starts. */
+  nextRoundAt?: number | null;
   /** When the current (or last) game began, for match length statistics. */
   gameStartedAt?: number | null;
 }
@@ -89,6 +98,7 @@ export function newRoom(
   now: number,
   reserved: [string, string] | null = null,
   kind?: "quick" | "challenge",
+  bestOf: 1 | 3 = 1,
 ): RoomRec {
   return {
     code,
@@ -103,6 +113,7 @@ export function newRoom(
     lastActivity: now,
     reserved,
     ...(kind ? { kind } : {}),
+    ...(bestOf === 3 ? { bestOf } : {}),
   };
 }
 
@@ -121,8 +132,14 @@ export class RoomCore {
   }
 
   players(): Players {
-    const info = (s: SeatRec | null) => (s ? { nickname: s.nickname, rating: s.rating, connected: s.offlineSince === null } : null);
+    const info = (s: SeatRec | null) =>
+      s ? { nickname: s.nickname, rating: s.rating, connected: s.offlineSince === null, look: lookSeed(s.playerId) } : null;
     return [info(this.rec.seats[0]), info(this.rec.seats[1])];
+  }
+
+  match(): MatchInfo {
+    const { rec } = this;
+    return { bestOf: rec.bestOf ?? 1, round: rec.round ?? 1, wins: rec.wins ?? [0, 0] };
   }
 
   private deadlineIn(now: number): number | null {
@@ -135,7 +152,13 @@ export class RoomCore {
     return {
       t: "welcome",
       you: seat,
-      room: { code: rec.code, table: rec.table, status: rec.status },
+      room: {
+        code: rec.code,
+        table: rec.table,
+        status: rec.status,
+        match: this.match(),
+        nextRoundIn: rec.nextRoundAt ? Math.max(0, rec.nextRoundAt - now) : null,
+      },
       players: this.players(),
       state: rec.state,
       deadlineIn: this.deadlineIn(now),
@@ -190,8 +213,16 @@ export class RoomCore {
     return { ...NOTHING, out: this.announce(now) };
   }
 
-  private startGame(now: number, first: Seat | undefined): Out[] {
+  /** Start a game: a new match (`newMatch`), or the next round of a best-of-3. */
+  private startGame(now: number, first: Seat | undefined, newMatch = true): Out[] {
     const { rec } = this;
+    if (newMatch) {
+      rec.round = 1;
+      rec.wins = [0, 0];
+    } else {
+      rec.round = (rec.round ?? 1) + 1;
+    }
+    rec.nextRoundAt = null;
     rec.state = newGame(this.newSeed(), rec.table, first);
     rec.status = "playing";
     rec.firstSeat = rec.state.turn;
@@ -200,7 +231,7 @@ export class RoomCore {
     rec.rematch = [false, false];
     rec.deadline = now + TURN_MS + ANIM_GRACE_MS;
     for (const s of rec.seats) if (s) s.timeouts = 0;
-    return [{ to: "all", msg: { t: "start", state: rec.state, deadlineIn: this.deadlineIn(now)!, players: this.players() } }];
+    return [{ to: "all", msg: { t: "start", state: rec.state, deadlineIn: this.deadlineIn(now)!, players: this.players(), match: this.match() } }];
   }
 
   // --- Playing ----------------------------------------------------------------
@@ -224,9 +255,24 @@ export class RoomCore {
     const animMs = Math.round(result.steps * DT * 1000) + ANIM_GRACE_MS;
     const out: Out[] = [];
     let finished = false;
+    let roundOver: Out | null = null;
     if (next.status === "over") {
-      this.finish("normal", next.winner as Seat | "draw", now);
-      finished = true;
+      const winner = next.winner as Seat | "draw";
+      if ((rec.bestOf ?? 1) === 3) {
+        // A round of a best-of-3. A drawn round doesn't count.
+        const wins = rec.wins ?? [0, 0];
+        if (winner !== "draw") wins[winner]++;
+        rec.wins = wins;
+      }
+      const decided = (rec.bestOf ?? 1) === 1 || (rec.wins ?? [0, 0]).some((w) => w >= 2);
+      if (decided) {
+        this.finish("normal", winner, now);
+        finished = true;
+      } else {
+        rec.deadline = null;
+        rec.nextRoundAt = now + animMs + ROUND_BREAK_MS;
+        roundOver = { to: "all", msg: { t: "round_over", winner, match: this.match(), nextIn: animMs + ROUND_BREAK_MS } };
+      }
     } else {
       rec.deadline = now + animMs + TURN_MS;
     }
@@ -234,6 +280,7 @@ export class RoomCore {
       to: "all",
       msg: { t: "shot", seq: state.shots, by: seat, shot, state: next, outcome, animMs, deadlineIn: this.deadlineIn(now) ?? 0 },
     });
+    if (roundOver) out.push(roundOver);
     return { out, finished, expired: false };
   }
 
@@ -283,13 +330,21 @@ export class RoomCore {
     const { rec } = this;
     rec.status = "over";
     rec.deadline = null;
+    rec.nextRoundAt = null;
     rec.lastActivity = now;
     rec.rematch = [false, false];
+    // Resigning, forfeiting or timing out loses the whole match.
+    if ((rec.bestOf ?? 1) === 3 && reason !== "normal" && winner !== "draw") {
+      const wins = rec.wins ?? [0, 0];
+      wins[winner] = Math.max(wins[winner], 2);
+      rec.wins = wins;
+    }
     rec.over = {
       winner,
       reason,
       scores: rec.state ? [rec.state.scores[0], rec.state.scores[1]] : [0, 0],
       ratings: null,
+      ...((rec.bestOf ?? 1) === 3 ? { wins: [...(rec.wins ?? [0, 0])] as [number, number] } : {}),
     };
   }
 
@@ -301,6 +356,7 @@ export class RoomCore {
     const times: number[] = [];
     if (rec.status === "playing") {
       if (rec.deadline !== null) times.push(rec.deadline);
+      if (rec.nextRoundAt) times.push(rec.nextRoundAt);
       for (const s of rec.seats) if (s?.offlineSince != null) times.push(s.offlineSince + RECONNECT_MS);
     } else if (rec.status === "waiting") {
       times.push(rec.lastActivity + ROOM_IDLE_MS);
@@ -322,6 +378,12 @@ export class RoomCore {
       if (gone.length > 0) {
         this.finish("forfeit", other(gone[0]), now);
         return { out: [], finished: true, expired: false };
+      }
+
+      // Between rounds of a best-of-3: the next round, with the other player first.
+      if (rec.nextRoundAt && now >= rec.nextRoundAt) {
+        rec.lastActivity = now;
+        return { ...NOTHING, out: this.startGame(now, other(rec.firstSeat ?? 0), false) };
       }
 
       if (rec.deadline !== null && now >= rec.deadline) {

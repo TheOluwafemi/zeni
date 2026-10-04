@@ -1,18 +1,23 @@
 import type { AiLevel } from "../shared/ai";
+import { CHARACTERS, lookFromSeed, lookSeed, type Expression, type Look } from "../shared/avatar";
 import { COIN_RADIUS, DEFAULT_PHYSICS, type Difficulty } from "../shared/constants";
-import { AIM_SEND_MS, TURN_MS, type OverInfo, type Players, type ServerMsg } from "../shared/protocol";
+import { AIM_SEND_MS, TURN_MS, type MatchInfo, type OverInfo, type Players, type ServerMsg } from "../shared/protocol";
 import { newRoomCode } from "../shared/room-code";
 import { randomSeed } from "../shared/rng";
 import { newGame, other } from "../shared/rules";
 import { tierChange, tierFor } from "../shared/tiers";
 import type { GameState, Seat } from "../shared/types";
+import { currentPlayer } from "./account";
 import { AimThrottle } from "./aim-relay";
+import { avatarSvg } from "./avatar-svg";
 import { sound } from "./audio";
 import { RoomClient, type Fatal, type Link } from "./net";
+import { REACTIONS } from "../shared/reactions";
 import { onReact, showBubble, showReactions } from "./reactions";
 import { tierBadge } from "./tier";
 import { ComputerPlayer } from "./game/computer";
 import { LocalGame, type Resolved } from "./game/local-game";
+import { setOpponentColor } from "./game/overlay";
 import { FlatView, type TableView } from "./game/table-view";
 import type { Table3D } from "./game/table-3d";
 import { mountTuning } from "./tune";
@@ -22,12 +27,26 @@ export type Opponent = "friend" | AiLevel | "online";
 export interface Setup {
   opponent: Opponent;
   difficulty: Difficulty;
+  /** A single game, or a best-of-3 (rounds alternate who goes first). */
+  bestOf?: 1 | 3;
 }
+
+/** " · Round 2 of 3 · 1–0" for a best-of-3, nothing for a single game. */
+function roundLabel(m: MatchInfo, you: Seat = 0): string {
+  if (m.bestOf === 1) return "";
+  return ` · Round ${m.round} of 3 · ${m.wins[you]}–${m.wins[you === 0 ? 1 : 0]}`;
+}
+
+/** A best-of-3 on this device: the round being played and the rounds each seat has won. */
+const localMatch = { round: 1, wins: [0, 0] as [number, number], counted: false };
+/** The result card's main button starts the next round rather than a new match. */
+let nextIsRound = false;
 
 const COMPUTER_SEAT: Seat = 1;
 const AIM_PREVIEW_MS = 650;
 const FLY_MS = 480;
 const LEVEL_NAMES: Record<AiLevel, string> = { beginner: "Beginner", skilled: "Skilled", master: "Master" };
+const character = () => CHARACTERS[setup.opponent as AiLevel];
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const canvas = $<HTMLCanvasElement>("#board");
@@ -66,6 +85,8 @@ interface Online {
   created: Difficulty | null;
   /** A Quick Match room: the opponent is already on their way, so there's no code to share. */
   quick: boolean;
+  /** A single game or a best-of-3, and how it stands. */
+  match: MatchInfo;
   /** A challenge room: who it's with. There's no code to share either; they see it on Home. */
   challenge: string | null;
   seat: Seat;
@@ -100,7 +121,7 @@ const isComputerTurn = () => vsComputer() && game.state.turn === COMPUTER_SEAT;
 function name(seat: Seat): string {
   if (isOnline()) return isYou(seat) ? "You" : (online?.players[seat]?.nickname ?? "Opponent");
   if (!vsComputer()) return seat === 0 ? "Player 1" : "Player 2";
-  return seat === COMPUTER_SEAT ? "Computer" : "You";
+  return seat === COMPUTER_SEAT ? character().name : "You";
 }
 const keeps = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "keep" : "keeps"}`;
 const gets = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "get" : "gets"}`;
@@ -109,9 +130,63 @@ const goesFirst = (seat: Seat) => `${name(seat)} ${isYou(seat) ? "go" : "goes"} 
 
 // --- Bars and messages ----------------------------------------------------
 
+// --- Avatars ----------------------------------------------------------------
+
+/** Each seat's face right now. They react to shots, then relax. */
+const faces: [Expression, Expression] = ["neutral", "neutral"];
+let relaxTimer = 0;
+
+/** Who each seat looks like, or null for the two players sharing a device. */
+function lookFor(seat: Seat): Look | null {
+  if (isOnline()) {
+    const info = online?.players[seat];
+    return info ? lookFromSeed(info.look) : null;
+  }
+  if (!vsComputer()) return null;
+  if (seat === COMPUTER_SEAT) return character().look;
+  const me = currentPlayer();
+  return me ? lookFromSeed(lookSeed(me.playerId)) : null;
+}
+
+/** The shooter's face after a shot, and the other player's the opposite way. */
+function react(shooter: Seat, face: Expression): void {
+  faces[shooter] = face;
+  faces[other(shooter)] = face === "pleased" ? "dismayed" : "pleased";
+  window.clearTimeout(relaxTimer);
+  const over = game.state.status === "over";
+  if (!over) relaxTimer = window.setTimeout(() => ((faces[0] = faces[1] = "neutral"), updateBars()), 2200);
+  else {
+    const w = game.state.winner;
+    if (w === "draw") faces[0] = faces[1] = "neutral";
+    else ((faces[w as Seat] = "pleased"), (faces[other(w as Seat)] = "dismayed"));
+  }
+  updateBars();
+}
+
+/** Draw the avatars into the bars (only when something changed) and set the opponent's colour. */
+function renderAvatars(): void {
+  bars.forEach((bar, i) => {
+    const seat = i as Seat;
+    const look = lookFor(seat);
+    const slot = bar.querySelector<HTMLElement>(".avatar")!;
+    const key = look ? `${JSON.stringify(look)}:${faces[seat]}` : "";
+    if (slot.dataset.key === key) return;
+    slot.dataset.key = key;
+    slot.innerHTML = look ? avatarSvg(look, faces[seat], { size: 36 }) : "";
+  });
+  // Their colour is their shirt: their aim line and their bubbles. In 3D they sit across the table.
+  const theirSeat = isOnline() && online ? other(online.seat) : vsComputer() ? COMPUTER_SEAT : null;
+  const theirs = theirSeat === null ? null : lookFor(theirSeat);
+  view.setOpponent(theirs, theirSeat === null ? "neutral" : faces[theirSeat], theirSeat !== null && game.state.status === "playing" && game.state.turn === theirSeat);
+  const colour = theirs?.shirt ?? "#6cc8e0";
+  setOpponentColor(colour);
+  document.documentElement.style.setProperty("--their", colour);
+}
+
 /** Redraw both player bars. A newly kept coin for `awaiting` stays hidden until its flight lands. */
 function updateBars(opts: { thinking?: boolean; awaiting?: Seat } = {}): void {
   const { scores, turn, status } = game.state;
+  renderAvatars();
   showReactions(isOnline() && !!online && online.status !== "waiting" && !!online.players[0] && !!online.players[1]);
   bars.forEach((bar, i) => {
     const seat = i as Seat;
@@ -149,6 +224,39 @@ function say(text: string): void {
   message.textContent = text;
 }
 
+// --- Toasts ------------------------------------------------------------------
+
+const toastEl = $("#toast");
+let toastTimer = 0;
+
+/** A short note at the top of the table: "Clean hit!", "Off the table: Kenta takes it". */
+function toast(text: string, good = false): void {
+  window.clearTimeout(toastTimer);
+  toastEl.textContent = text;
+  toastEl.classList.toggle("good", good);
+  // Restart the entrance animation.
+  toastEl.hidden = true;
+  void toastEl.offsetWidth;
+  toastEl.hidden = false;
+  toastTimer = window.setTimeout(() => (toastEl.hidden = true), 1800);
+}
+
+/** The toast for a shot, in a few words. */
+function shotToast(shooter: Seat, outcome: Resolved["outcome"]): void {
+  const them = other(shooter);
+  const fell = outcome.fallen.length;
+  const yourTurnNext = !outcome.again && youSeat() !== null && isYou(them);
+  const tail = yourTurnNext ? " · Your turn" : "";
+  if (outcome.captured !== null) return toast(`Clean hit!${outcome.again ? " Go again" : ""}`, true);
+  if (fell > 0) {
+    const taker = isYou(them) ? "you take" : `${name(them)} takes`;
+    return toast(`Off the table: ${taker} ${fell === 1 ? "it" : "them"}${tail}`);
+  }
+  if (outcome.touched === 0) return toast(`Missed${tail}`);
+  const count = ["", "", "Two", "Three", "Four"][outcome.touched] ?? String(outcome.touched);
+  toast(`${count} coins touched${tail}`);
+}
+
 /** Fly a kept coin from the table into the player's tray. */
 function flyToTray(kept: NonNullable<Resolved["kept"]>, seat: Seat): Promise<void> {
   const pip = bars[seat].querySelector<HTMLElement>(".pip.awaiting:last-child");
@@ -182,7 +290,11 @@ function flyToTray(kept: NonNullable<Resolved["kept"]>, seat: Seat): Promise<voi
 
 // --- Game flow ------------------------------------------------------------
 
-export function start(next: Setup, rematch = false): void {
+/** Start a game. `rematch` swaps who goes first; `nextRound` carries on a best-of-3 match. */
+export function start(next: Setup, rematch = false, nextRound = false): void {
+  if (nextRound) localMatch.round++;
+  else Object.assign(localMatch, { round: 1, wins: [0, 0] });
+  localMatch.counted = false;
   leaveRoom();
   setup = next;
   gameToken++;
@@ -199,9 +311,16 @@ export function start(next: Setup, rematch = false): void {
   shownPips[0] = shownPips[1] = 0;
   for (const bar of bars) bar.querySelector(".pips")!.replaceChildren();
   $("#game-label").textContent =
-    `${vsComputer() ? `vs ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${setup.difficulty === "easy" ? "Easy table" : "Hard table"}`;
+    `${vsComputer() ? `vs ${character().name} · ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${setup.difficulty === "easy" ? "Easy table" : "Hard table"}` +
+    roundLabel({ bestOf: setup.bestOf ?? 1, round: localMatch.round, wins: localMatch.wins });
+  faces[0] = faces[1] = "neutral";
   updateBars();
   say(`${goesFirst(game.state.turn)} Drag back from a coin and let go.`);
+  // The computer's character says hello (not on a rematch: once is enough).
+  if (vsComputer() && !rematch && !nextRound) {
+    const token = gameToken;
+    window.setTimeout(() => token === gameToken && showBubble(bars[COMPUTER_SEAT], character().line, true, 4200), 350);
+  }
   dirty = true;
   requestAnimationFrame(() => {
     if (view.resize()) dirty = true;
@@ -220,13 +339,37 @@ export function stop(): void {
 function showResult(): void {
   const { winner, scores } = game.state;
   const youWon = winner !== "draw" && isYou(winner as Seat);
-  const title = winner === "draw" ? "It's a draw" : youWon ? "You win!" : `${name(winner as Seat)} wins`;
-  $("#result-title").textContent = title;
-  $("#result-score").textContent = vsComputer()
-    ? `You ${scores[0]} – ${scores[1]} Computer`
-    : `Player 1 ${scores[0]} – ${scores[1]} Player 2`;
   const nextFirst = other(firstPlayer);
-  $("#result-note").textContent = `In the rematch, ${isYou(nextFirst) ? "you go" : `${name(nextFirst)} goes`} first.`;
+  const goes = `${isYou(nextFirst) ? "you go" : `${name(nextFirst)} goes`} first`;
+  const coins = vsComputer() ? `You ${scores[0]} – ${scores[1]} ${character().name}` : `Player 1 ${scores[0]} – ${scores[1]} Player 2`;
+
+  // A best-of-3 carries on until someone has won two rounds. A drawn round doesn't count.
+  let matchOver = true;
+  if ((setup.bestOf ?? 1) === 3) {
+    if (!localMatch.counted && winner !== "draw") localMatch.wins[winner as Seat]++;
+    localMatch.counted = true;
+    matchOver = localMatch.wins.some((w) => w >= 2);
+  }
+  nextIsRound = !matchOver;
+  const [w0, w1] = localMatch.wins;
+  const rounds = vsComputer() ? `Rounds: You ${w0} – ${w1} ${character().name}` : `Rounds: Player 1 ${w0} – ${w1} Player 2`;
+
+  if ((setup.bestOf ?? 1) === 1) {
+    $("#result-title").textContent = winner === "draw" ? "It's a draw" : youWon ? "You win!" : `${name(winner as Seat)} wins`;
+    $("#result-score").textContent = coins;
+    $("#result-note").textContent = `In the rematch, ${goes}.`;
+  } else if (!matchOver) {
+    $("#result-title").textContent =
+      winner === "draw" ? `Round ${localMatch.round} is a draw` : youWon ? `You take round ${localMatch.round}` : `${name(winner as Seat)} takes round ${localMatch.round}`;
+    $("#result-score").textContent = `${rounds} · this round ${coins}`;
+    $("#result-note").textContent = `Next round: ${goes}.`;
+  } else {
+    const champ = (w0 > w1 ? 0 : 1) as Seat;
+    $("#result-title").textContent = isYou(champ) ? "You win the match!" : `${name(champ)} wins the match`;
+    $("#result-score").textContent = rounds;
+    $("#result-note").textContent = `In a new match, ${goes}.`;
+  }
+  $<HTMLButtonElement>("#rematch").textContent = nextIsRound ? "Next round" : (setup.bestOf ?? 1) === 3 ? "New match" : "Rematch";
   result.hidden = false;
   if (vsComputer() && winner !== "draw") (youWon ? sound.win() : sound.lose());
   else sound.win();
@@ -242,6 +385,8 @@ game.onSimEvents = (events) => sound.events(events);
 game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
   const token = gameToken;
   const them = other(shooter);
+  react(shooter, outcome.captured !== null ? "pleased" : "dismayed");
+  if (game.state.status !== "over") shotToast(shooter, outcome);
   updateBars({ awaiting: kept ? shooter : undefined });
   const landed = kept ? flyToTray(kept, shooter) : Promise.resolve();
   if (kept) {
@@ -250,6 +395,14 @@ game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
   }
 
   // Online, the server announces the end of the game (with ratings); show the card once the last shot has played.
+  // Online, a best-of-3 round ended but the match goes on: the server starts the next round itself.
+  if (isOnline() && online && !online.over && game.state.status === "over" && online.match.bestOf === 3) {
+    const w = game.state.winner;
+    const m = online.match;
+    toast(w === "draw" ? "Drawn round" : isYou(w as Seat) ? `You take round ${m.round}` : `${name(w as Seat)} takes round ${m.round}`, w !== "draw" && isYou(w as Seat));
+    say(`Rounds: you ${m.wins[online.seat]} – ${m.wins[other(online.seat)]} ${name(other(online.seat))}. The next round starts in a moment.`);
+    return;
+  }
   if (game.state.status === "over" || (isOnline() && online?.over)) {
     say("Game over.");
     void landed.then(() => setTimeout(() => token === gameToken && (isOnline() ? showOnlineResult() : showResult()), 250));
@@ -283,7 +436,7 @@ $("#rematch").addEventListener("click", () => {
     online.client.send({ t: "rematch" });
     renderRematch();
   } else {
-    start(setup, true);
+    start(setup, true, nextIsRound);
   }
 });
 $("#result-home").addEventListener("click", () => {
@@ -342,7 +495,11 @@ function emptyTable(difficulty: Difficulty): GameState {
 }
 
 /** Join or create a room. `create` is the table to open a new room with, or null to join an existing one. */
-export function startOnline(code: string, create: Difficulty | null, opts: { attempt?: number; quick?: boolean; challenge?: string } = {}): void {
+export function startOnline(
+  code: string,
+  create: Difficulty | null,
+  opts: { attempt?: number; quick?: boolean; challenge?: string; bestOf?: 1 | 3 } = {},
+): void {
   const attempt = opts.attempt ?? 0;
   stop();
   const token = ++gameToken;
@@ -365,11 +522,11 @@ export function startOnline(code: string, create: Difficulty | null, opts: { att
     fatal: (reason) => {
       if (token !== gameToken) return;
       // Someone else already has this code: try another.
-      if (reason === "room_exists" && create && attempt < 3) return startOnline(newRoomCode(), create, { attempt: attempt + 1 });
+      if (reason === "room_exists" && create && attempt < 3) return startOnline(newRoomCode(), create, { attempt: attempt + 1, bestOf: opts.bestOf });
       showFatal(reason);
     },
-  });
-  online = { client, code, created: create, quick: !!opts.quick, challenge: opts.challenge ?? null, seat: 0, players: [null, null], status: "waiting", over: null, rematch: [false, false] };
+  }, opts.bestOf ?? 1);
+  online = { client, code, created: create, quick: !!opts.quick, match: { bestOf: opts.bestOf ?? 1, round: 1, wins: [0, 0] }, challenge: opts.challenge ?? null, seat: 0, players: [null, null], status: "waiting", over: null, rematch: [false, false] };
   say(create ? "Opening your room…" : "Joining…");
   updateBars();
   dirty = true;
@@ -415,6 +572,13 @@ function showFatal(reason: Fatal | "no_show"): void {
   $<HTMLButtonElement>("#notice-home").focus();
 }
 
+/** "Room K7QXM · Easy table · Round 2 of 3 · 1–0" */
+function onlineLabel(): void {
+  const o = online;
+  if (!o) return;
+  $("#game-label").textContent = `Room ${o.code} · ${setup.difficulty === "easy" ? "Easy" : "Hard"} table${roundLabel(o.match, o.seat)}`;
+}
+
 function onServer(msg: ServerMsg): void {
   const o = online;
   if (!o) return;
@@ -433,7 +597,8 @@ function onServer(msg: ServerMsg): void {
       o.rematch = msg.rematch;
       game.controlledSeat = msg.you;
       setup.difficulty = msg.room.table;
-      $("#game-label").textContent = `Room ${o.code} · ${msg.room.table === "easy" ? "Easy" : "Hard"} table`;
+      o.match = msg.room.match;
+      onlineLabel();
       const state = msg.state ?? emptyTable(msg.room.table);
       game.load(state);
       resetPips(state);
@@ -453,6 +618,9 @@ function onServer(msg: ServerMsg): void {
       } else if (msg.over) {
         say("Game over.");
         showOnlineResult();
+      } else if (msg.room.nextRoundIn !== null) {
+        result.hidden = true;
+        say("The next round starts in a moment.");
       } else {
         result.hidden = true;
         say(`${turnOf(state.turn)} Drag back from a coin and let go.`);
@@ -472,6 +640,8 @@ function onServer(msg: ServerMsg): void {
       break;
     case "start":
       window.clearTimeout(noShowTimer);
+      o.match = msg.match;
+      onlineLabel();
       o.status = "playing";
       o.over = null;
       o.rematch = [false, false];
@@ -483,8 +653,12 @@ function onServer(msg: ServerMsg): void {
       lobby.hidden = true;
       result.hidden = true;
       updateBars();
-      say(`${goesFirst(msg.state.turn)} Drag back from a coin and let go.`);
+      say(`${msg.match.bestOf === 3 ? `Round ${msg.match.round}. ` : ""}${goesFirst(msg.state.turn)} Drag back from a coin and let go.`);
       dirty = true;
+      break;
+    case "round_over":
+      // Shown when the last shot has finished playing (see onResolved).
+      o.match = msg.match;
       break;
     case "shot": {
       deadlineAt = Date.now() + msg.deadlineIn;
@@ -519,7 +693,7 @@ function onServer(msg: ServerMsg): void {
       dirty = true;
       break;
     case "react":
-      showBubble(bars[msg.by], msg.r, true);
+      showBubble(bars[msg.by], REACTIONS[msg.r], true);
       break;
     case "rematch":
       o.rematch = msg.votes;
@@ -588,8 +762,13 @@ function showOnlineResult(): void {
 
   const youWon = over.winner === o.seat;
   const opponent = name(other(o.seat));
-  $("#result-title").textContent = over.winner === "draw" ? "It's a draw" : youWon ? "You win!" : `${opponent} wins`;
-  $("#result-score").textContent = `You ${over.scores[o.seat]} – ${over.scores[other(o.seat)]} ${opponent}`;
+  if (over.wins) {
+    $("#result-title").textContent = over.winner === "draw" ? "It's a draw" : youWon ? "You win the match!" : `${opponent} wins the match`;
+    $("#result-score").textContent = `Rounds: you ${over.wins[o.seat]} – ${over.wins[other(o.seat)]} ${opponent}`;
+  } else {
+    $("#result-title").textContent = over.winner === "draw" ? "It's a draw" : youWon ? "You win!" : `${opponent} wins`;
+    $("#result-score").textContent = `You ${over.scores[o.seat]} – ${over.scores[other(o.seat)]} ${opponent}`;
+  }
 
   resultReason = over.reason === "normal" ? "" : youWon ? `${opponent} ${REASONS[over.reason][0]}` : REASONS[over.reason][1];
   const r = over.ratings;
@@ -664,7 +843,7 @@ async function playComputerTurn(): Promise<void> {
 onReact((r) => {
   if (!online) return;
   online.client.send({ t: "react", r });
-  showBubble(bars[online.seat], r, false);
+  showBubble(bars[online.seat], REACTIONS[r], false);
 });
 
 // --- Input ----------------------------------------------------------------
@@ -750,6 +929,7 @@ export async function load3D(): Promise<void> {
     table3d = t;
     view = t;
     view.resize();
+    updateBars(); // tells the new view who sits across the table
     viewToggle.hidden = false;
     renderViewToggle();
     dirty = true;

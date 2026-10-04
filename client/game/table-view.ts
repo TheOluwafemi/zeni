@@ -2,6 +2,7 @@
 //   FlatView: the original top-down canvas. Shown while the 3D view loads, and if WebGL isn't available.
 //   Table3D (table-3d.ts): a tilted table you can turn, with real light and depth.
 
+import type { Expression, Look } from "../../shared/avatar";
 import type { LocalGame } from "./local-game";
 import { Renderer } from "./render";
 import { BoardView, type Point } from "./view";
@@ -22,6 +23,8 @@ export interface TableView {
   beginTurn(e: PointerEvent): boolean;
   /** Something is still moving by itself (the camera easing), so keep drawing. */
   moving(): boolean;
+  /** Who sits across the table (null for nobody), their face, and whether it's their turn. */
+  setOpponent(look: Look | null, face: Expression, theirTurn: boolean): void;
   /** Stop drawing for good (the view is being replaced). */
   dispose(): void;
 }
@@ -59,5 +62,6 @@ export class FlatView implements TableView {
   moving(): boolean {
     return false;
   }
+  setOpponent(): void {}
   dispose(): void {}
 }

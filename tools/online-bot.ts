@@ -59,14 +59,14 @@ export class Bot {
     this.rng = mulberry32(seed);
   }
 
-  connect(room: string, create?: "easy" | "hard"): Promise<void> {
+  connect(room: string, create?: "easy" | "hard", bestOf?: 1 | 3): Promise<void> {
     this.closed = null;
     this.ws = new WebSocket(`${this.srv.ws}/ws/room/${room}`);
     this.ws.addEventListener("message", (e) => this.onMessage(JSON.parse(String(e.data)) as ServerMsg));
     this.ws.addEventListener("close", (e) => (this.closed = { code: e.code }));
     return new Promise((resolve, reject) => {
       this.ws.addEventListener("open", () => {
-        this.send({ t: "hello", code: this.playerCode, create });
+        this.send({ t: "hello", code: this.playerCode, create, ...(bestOf === 3 ? { bestOf } : {}) });
         resolve();
       });
       this.ws.addEventListener("error", () => reject(new Error(`${this.name}: socket error`)));

@@ -37,9 +37,17 @@ const LEVELS: Record<AiLevel, LevelSpec> = {
   master: { aimNoise: 0.08, powerNoise: 0.14, pickFrom: 1, robustTop: 12, robustSamples: 5, defend: 1 },
 };
 
+/**
+ * The easy table (fewer cups, 14 coins) leaves far more open shots, so the same aim keeps far more
+ * coins there. Shakier aim on that table keeps each level about as strong on both.
+ */
+const EASY_TABLE_AIM: Record<AiLevel, number> = { beginner: 1.7, skilled: 2.5, master: 2.1 };
+
 const CUT_FRACTIONS = [-0.5, -0.25, 0, 0.25, 0.5];
 const FOLLOW_THROUGH = [40, 160, 360];
 const MAX_REACH = 900;
+/** Targets considered per coin. Keeps thinking quick on a full table (about 100 ms on a laptop). */
+const NEAREST_TARGETS = 6;
 const EASY_SHOT = 450;
 
 // --- Aiming helpers (also used by the tuning bot) ------------------------------
@@ -90,10 +98,14 @@ function clampPower(p: number): number {
 function candidates(state: GameState, cfg: PhysicsConfig): Shot[] {
   const shots: Shot[] = [];
   for (const s of shootable(state)) {
-    for (const t of state.coins) {
-      if (t.id === s.id) continue;
-      const d = Math.hypot(t.x - s.x, t.y - s.y);
-      if (d > MAX_REACH) continue;
+    // Only the nearest few targets: far shots rarely beat near ones, and a full table has many coins.
+    const near = state.coins
+      .filter((t) => t.id !== s.id)
+      .map((t) => ({ t, d: Math.hypot(t.x - s.x, t.y - s.y) }))
+      .filter(({ d }) => d <= MAX_REACH)
+      .sort((a, b) => a.d - b.d || a.t.id - b.t.id)
+      .slice(0, NEAREST_TARGETS);
+    for (const { t, d } of near) {
       const base = Math.atan2(t.y - s.y, t.x - s.x);
       // Widest angle that still clips the target, so cuts send it in different directions.
       const maxCut = Math.asin(Math.min(1, (COIN_RADIUS * 2) / d));
@@ -159,7 +171,8 @@ export function chooseShot(
   rng: () => number,
   cfg: PhysicsConfig = DEFAULT_PHYSICS,
 ): Shot {
-  const spec = LEVELS[level];
+  const base = LEVELS[level];
+  const spec = { ...base, aimNoise: base.aimNoise * (state.difficulty === "easy" ? EASY_TABLE_AIM[level] : 1) };
   const me = state.turn;
   const scored = candidates(state, cfg)
     .map((shot) => ({ shot, v: evaluate(state, shot, me, spec, cfg) }))
