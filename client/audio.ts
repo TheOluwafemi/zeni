@@ -1,9 +1,13 @@
-// Every sound is synthesised with Web Audio: no files to download. Coins are a few
-// inharmonic partials with a fast decay (that's what makes metal sound like metal);
-// the cup is a lower ceramic tap; jingles use a pentatonic scale.
+// Game sounds. Coins, cups, flicks and falls are short recordings from Kenney's CC0 sound packs
+// (kenney.nl; built into public/sounds by tools/make-sounds.sh, 64 kB in all). They load after the
+// first tap; until then, or if they can't load, the synthesised versions below play instead.
+// Coins in synthesis are a few inharmonic partials with a fast decay (that's what makes metal sound
+// like metal); the cup is a lower ceramic tap; jingles use a pentatonic scale.
 
 const STORAGE_KEY = "zeni.sound";
 const MAX_HITS_PER_BATCH = 3;
+const CLIPS = ["clack-1", "clack-2", "clack-3", "cup-1", "cup-2", "cup-3", "flick", "keep", "floor-1", "floor-2", "win"] as const;
+type Clip = (typeof CLIPS)[number];
 
 type Wave = OscillatorType;
 
@@ -11,6 +15,7 @@ class Sound {
   private ctx: AudioContext | null = null;
   private out: GainNode | null = null;
   private noise: AudioBuffer | null = null;
+  private clips = new Map<Clip, AudioBuffer>();
   enabled = readSetting();
 
   /** Browsers only allow audio after a user gesture; call this from one. */
@@ -23,6 +28,7 @@ class Sound {
       this.out.gain.value = 0.6;
       this.out.connect(this.ctx.destination);
       this.noise = this.makeNoise();
+      void this.loadClips();
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
   }
@@ -41,6 +47,39 @@ class Sound {
   }
 
   // --- Building blocks ------------------------------------------------------
+
+  private async loadClips(): Promise<void> {
+    const ctx = this.ctx!;
+    await Promise.all(
+      CLIPS.map(async (name) => {
+        try {
+          const res = await fetch(`/sounds/${name}.m4a`);
+          if (res.ok) this.clips.set(name, await ctx.decodeAudioData(await res.arrayBuffer()));
+        } catch {
+          // Offline before it was cached, or the format isn't supported: the synthesised sound plays.
+        }
+      }),
+    );
+  }
+
+  /** Play a recording, if it has loaded. A slight random pitch keeps repeats from sounding canned. */
+  private play(name: Clip, gain: number, at = 0, pitch = 0.08): boolean {
+    const ctx = this.ctx!;
+    const buf = this.clips.get(name);
+    if (!buf) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = 1 - pitch / 2 + Math.random() * pitch;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g).connect(this.out!);
+    src.start(ctx.currentTime + at);
+    return true;
+  }
+
+  private pick<T>(xs: readonly T[]): T {
+    return xs[Math.floor(Math.random() * xs.length)];
+  }
 
   private makeNoise(): AudioBuffer {
     const ctx = this.ctx!;
@@ -104,6 +143,7 @@ class Sound {
   clack(impulse: number): void {
     if (!this.ready()) return;
     const gain = Math.min(0.5, 0.06 + impulse / 2500);
+    if (this.play(this.pick(["clack-1", "clack-2", "clack-3"] as const), gain * 1.6, 0, 0.16)) return;
     this.metal(2300 * (0.92 + Math.random() * 0.16), gain);
   }
 
@@ -111,6 +151,7 @@ class Sound {
   tap(impulse: number): void {
     if (!this.ready()) return;
     const gain = Math.min(0.45, 0.05 + impulse / 3000);
+    if (this.play(this.pick(["cup-1", "cup-2", "cup-3"] as const), gain * 1.6)) return;
     this.tone(1650 * (0.95 + Math.random() * 0.1), gain, 0.22);
     this.tone(3420, gain * 0.35, 0.12);
     this.tone(190, gain * 0.6, 0.06, 0, "triangle");
@@ -119,6 +160,7 @@ class Sound {
   /** The finger flick that sends a coin off. */
   flick(power: number): void {
     if (!this.ready()) return;
+    if (this.play("flick", 0.25 + power * 0.45)) return;
     this.hiss(0.08 + power * 0.25, 0.09, 900, 3200, 0, 1.2);
     this.tone(320, 0.08 + power * 0.1, 0.04, 0, "triangle");
   }
@@ -126,8 +168,11 @@ class Sound {
   /** A coin kept: a bright two-note chime. */
   keep(): void {
     if (!this.ready()) return;
-    this.tone(1046.5, 0.18, 0.5, 0, "sine", 0.005);
-    this.tone(1568, 0.14, 0.6, 0.09, "sine", 0.005);
+    // A soft "ting", then the coin landing on your stack.
+    const recorded = this.play("keep", 0.7, 0.42, 0.04);
+    const chime = recorded ? 0.55 : 1;
+    this.tone(1046.5, 0.18 * chime, 0.5, 0, "sine", 0.005);
+    this.tone(1568, 0.14 * chime, 0.6, 0.09, "sine", 0.005);
   }
 
   /** A coin going over the edge: a drop, then it lands and rattles on the floor. */
@@ -145,12 +190,14 @@ class Sound {
     osc.connect(g).connect(this.out!);
     osc.start(t);
     osc.stop(t + 0.35);
-    // Lands and rattles: quieter, faster bounces.
+    // Lands on the floor and bounces.
+    if (this.play("floor-1", 0.45, 0.34) && this.play("floor-2", 0.22, 0.5)) return;
     [0.34, 0.47, 0.55, 0.6].forEach((at, i) => this.metal(1700 - i * 60, 0.16 / (i + 1), at));
   }
 
   win(): void {
     if (!this.ready()) return;
+    this.play("win", 0.6, 0.3, 0);
     [523.25, 587.33, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, 0.16, 0.5, i * 0.11, "triangle", 0.01));
   }
 
