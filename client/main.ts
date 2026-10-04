@@ -10,6 +10,7 @@ import { start, startOnline, setOnExit, type Opponent } from "./game-screen";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
 import { setupInstall } from "./install";
 import { openLeaderboard } from "./leaderboard";
+import { refresh as refreshChallenges, startChallenges } from "./challenges";
 import { cancelQuickMatch, openQuickMatch } from "./quick-match";
 import { describePresence, latestPresence, pingSoon, startPresence } from "./presence";
 import { makeCoinSprite } from "./game/sprites";
@@ -46,7 +47,10 @@ function show(screen: "home" | "game", detail = ""): void {
   setScreen(screen === "home" ? "home" : `game:${detail || "local"}`);
   home.hidden = screen !== "home";
   gameScreen.hidden = screen !== "game";
-  if (screen === "home") void refreshPlayer(); // ratings change after online games
+  if (screen === "home") {
+    void refreshPlayer(); // ratings change after online games
+    void refreshChallenges();
+  }
 }
 
 function play(opponent: Opponent): void {
@@ -157,7 +161,18 @@ $("#quick-match").addEventListener("click", () =>
   }),
 );
 
-$("#open-leaderboard").addEventListener("click", openLeaderboard);
+$("#open-leaderboard").addEventListener("click", () => openLeaderboard(table));
+
+startChallenges({
+  enter: (room, opponent) => {
+    cancelQuickMatch(); // a challenge game replaces any search
+    sound.unlock();
+    show("game", "online");
+    startOnline(room, null, { challenge: opponent });
+  },
+  homeVisible: () => !home.hidden,
+  table: () => table,
+});
 
 $("#online-create").addEventListener("click", () =>
   needPlayer(() => {

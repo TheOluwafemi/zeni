@@ -50,6 +50,8 @@ export interface RoomRec {
   lastActivity: number;
   /** For Quick Match rooms: the two players it was made for. Nobody else may take a seat. */
   reserved?: [string, string] | null;
+  /** How a reserved room came about. Missing on rooms saved before challenges existed (they were Quick Match). */
+  kind?: "quick" | "challenge";
   /** When the current (or last) game began, for match length statistics. */
   gameStartedAt?: number | null;
 }
@@ -81,7 +83,13 @@ export interface Joiner {
   rating: number;
 }
 
-export function newRoom(code: string, table: Difficulty, now: number, reserved: [string, string] | null = null): RoomRec {
+export function newRoom(
+  code: string,
+  table: Difficulty,
+  now: number,
+  reserved: [string, string] | null = null,
+  kind?: "quick" | "challenge",
+): RoomRec {
   return {
     code,
     table,
@@ -94,6 +102,7 @@ export function newRoom(code: string, table: Difficulty, now: number, reserved: 
     rematch: [false, false],
     lastActivity: now,
     reserved,
+    ...(kind ? { kind } : {}),
   };
 }
 

@@ -65,6 +65,8 @@ interface Online {
   created: Difficulty | null;
   /** A Quick Match room: the opponent is already on their way, so there's no code to share. */
   quick: boolean;
+  /** A challenge room: who it's with. There's no code to share either; they see it on Home. */
+  challenge: string | null;
   seat: Seat;
   players: Players;
   status: "waiting" | "playing" | "over";
@@ -339,7 +341,7 @@ function emptyTable(difficulty: Difficulty): GameState {
 }
 
 /** Join or create a room. `create` is the table to open a new room with, or null to join an existing one. */
-export function startOnline(code: string, create: Difficulty | null, opts: { attempt?: number; quick?: boolean } = {}): void {
+export function startOnline(code: string, create: Difficulty | null, opts: { attempt?: number; quick?: boolean; challenge?: string } = {}): void {
   const attempt = opts.attempt ?? 0;
   stop();
   const token = ++gameToken;
@@ -366,7 +368,7 @@ export function startOnline(code: string, create: Difficulty | null, opts: { att
       showFatal(reason);
     },
   });
-  online = { client, code, created: create, quick: !!opts.quick, seat: 0, players: [null, null], status: "waiting", over: null, rematch: [false, false] };
+  online = { client, code, created: create, quick: !!opts.quick, challenge: opts.challenge ?? null, seat: 0, players: [null, null], status: "waiting", over: null, rematch: [false, false] };
   say(create ? "Opening your room…" : "Joining…");
   updateBars();
   dirty = true;
@@ -445,7 +447,7 @@ function onServer(msg: ServerMsg): void {
         const token = gameToken;
         noShowTimer = window.setTimeout(() => token === gameToken && online?.status === "waiting" && showFatal("no_show"), 25_000);
       } else if (msg.room.status === "waiting") {
-        $("#lobby-code").textContent = o.code;
+        fillLobby(o);
         sayWaiting();
       } else if (msg.over) {
         say("Game over.");
@@ -463,7 +465,7 @@ function onServer(msg: ServerMsg): void {
       if (o.status === "waiting") {
         // A friend arrived while we were waiting for them, or someone dropped before the game began.
         lobby.hidden = o.quick || waitingForAbsentPlayer();
-        if (!lobby.hidden) $("#lobby-code").textContent = o.code;
+        if (!lobby.hidden) fillLobby(o);
         sayWaiting();
       }
       break;
@@ -534,11 +536,22 @@ function waitingForAbsentPlayer(): boolean {
   return !!o && o.status === "waiting" && !!o.players[0] && !!o.players[1];
 }
 
+/** The waiting sheet: a code to share with a friend, or, for a challenge, who you're waiting for. */
+function fillLobby(o: Online): void {
+  $("#lobby-title").textContent = o.challenge ? `Waiting for ${o.challenge}` : "Waiting for a friend";
+  $("#lobby-text").textContent = o.challenge
+    ? "The game starts as soon as you're both here. If they're not on Zeni right now, they'll see it on their home screen."
+    : "Send them this code or the link. The game starts as soon as they join.";
+  $("#lobby-code").textContent = o.code;
+  $("#lobby-code").hidden = $("#lobby-share-row").hidden = !!o.challenge;
+}
+
 function sayWaiting(): void {
   const o = online;
   if (!o) return;
   if (waitingForAbsentPlayer()) say(`Waiting for ${name(other(o.seat))} to come back…`);
   else if (o.quick) say("Opponent found. Waiting for them to connect…");
+  else if (o.challenge) say(`Waiting for ${o.challenge} to join.`);
   else say("Waiting for a friend to join.");
 }
 

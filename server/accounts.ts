@@ -184,6 +184,7 @@ export async function handleAccounts(
       db.prepare("UPDATE matches SET p1 = 'deleted' WHERE p1 = ?1").bind(me.id),
       db.prepare("UPDATE feedback SET player_id = NULL, nickname = NULL WHERE player_id = ?1").bind(me.id),
       db.prepare("DELETE FROM daily_active WHERE player_id = ?1").bind(me.id),
+      db.prepare("DELETE FROM challenges WHERE from_id = ?1 OR to_id = ?1").bind(me.id),
       db.prepare("DELETE FROM players WHERE id = ?1").bind(me.id),
     ]);
     return json({ ok: true });

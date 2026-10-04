@@ -16,6 +16,7 @@
     "play-online": "tsx tools/play-online.ts",
     "bot-room": "tsx tools/bot-room.ts",
     "play-quick": "tsx tools/play-quick.ts",
+    "play-challenge": "tsx tools/play-challenge.ts",
     "report": "tsx tools/report.ts",
     "share-image": "tsx tools/make-share-image.ts"
   },

@@ -1,6 +1,7 @@
 import { PROTOCOL_VERSION } from "../shared/constants";
-import { normalizeRoomCode } from "../shared/room-code";
+import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
 import { handleAccounts } from "./accounts";
+import { handleChallenges } from "./challenges";
 import { handleLeaderboard } from "./leaderboard";
 import { maintenance } from "./maintenance";
 import { handleTelemetry, logServerError } from "./telemetry";
@@ -78,6 +79,15 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 
   const telemetry = await handleTelemetry(request, url, env.DB);
   if (telemetry) return telemetry;
+
+  const challenges = await handleChallenges(
+    request,
+    url,
+    env.DB,
+    (code, table, players) => env.ROOM.getByName(code).open(code, table, players, "challenge"),
+    newRoomCode,
+  );
+  if (challenges) return challenges;
 
   const accounts = await handleAccounts(request, url, env.DB, (p) => ctx.waitUntil(p));
   if (accounts) return accounts;

@@ -1263,3 +1263,77 @@ button.danger:hover {
     animation: bubble-out 0.3s ease-in 2.3s forwards;
   }
 }
+
+/* --- Challenges and recent opponents ------------------------------------------ */
+
+.challenges {
+  margin: 4px 0 8px;
+}
+
+.challenges .sub {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.challenge-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.challenge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.challenge-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.challenge-info > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.challenge-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.challenge-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.challenge-actions button,
+.board-row .challenge-btn {
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+}
+
+.board-row .challenge-btn {
+  flex: none;
+}
+
+.board-row .challenge-btn.spacer {
+  visibility: hidden;
+}
