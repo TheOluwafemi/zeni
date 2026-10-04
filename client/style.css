@@ -233,29 +233,21 @@ button.ghost:hover {
   font-weight: 600;
 }
 
-/* Kept coins stack up into a column, seen side-on: the taller stack is ahead. */
+/* Kept coins, side by side. */
 .pips {
   display: flex;
   flex: 1;
-  flex-direction: column-reverse;
-  align-items: flex-end;
-  justify-content: flex-start;
-  align-self: center;
-  /* A fixed height, so a tall stack pokes up a little instead of making the bar taller. */
-  height: 32px;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
 }
 
 .pip {
-  flex: none;
-  width: 22px;
-  height: 8px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: linear-gradient(#f6d08e, #c98a45 45%, #7a4219);
-  box-shadow: 0 1px 0 #3a1d0a, inset 0 1px 0 rgba(255, 240, 210, 0.6);
-}
-
-.pip + .pip {
-  margin-bottom: -5.5px;
+  background: radial-gradient(circle at 35% 30%, #f6d08e, #b8733a 60%, #5e3215);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .pip.awaiting {

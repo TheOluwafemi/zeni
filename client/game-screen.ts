@@ -568,10 +568,11 @@ game.onSimEvents = (events) => sound.events(events);
 game.onResolved = ({ shooter, outcome, kept }: Resolved) => {
   const token = gameToken;
   const them = other(shooter);
-  react(shooter, outcome.captured !== null ? "pleased" : "dismayed");
-  if (game.state.status !== "over") shotToast(shooter, outcome);
+  // The scoreboard first, so a kept coin's place stays empty for its flight; faces after (they redraw too).
   updateBars({ awaiting: kept ? shooter : undefined });
   const landed = kept ? flyToTray(kept, shooter) : Promise.resolve();
+  react(shooter, outcome.captured !== null ? "pleased" : "dismayed");
+  if (game.state.status !== "over") shotToast(shooter, outcome);
   if (kept) {
     sound.keep();
     if (youSeat() === null || isYou(shooter)) navigator.vibrate?.(12);
