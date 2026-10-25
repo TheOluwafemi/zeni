@@ -57,7 +57,7 @@ npm ci
 npm run dev
 ```
 
-Then open http://localhost:5173. The Worker and Durable Objects run inside the dev server.
+Then open http://localhost:5173
 
 ### Useful scripts
 
