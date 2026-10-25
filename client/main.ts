@@ -9,7 +9,7 @@ import { sound } from "./audio";
 import { BUILD, installErrorReporting, ping, pingOpenOnce, setScreen } from "./diagnostics";
 import { openFeedback } from "./feedback";
 import { newRoomCode, normalizeRoomCode } from "../shared/room-code";
-import { load3D, setPlace, start, startOnline, setOnExit, type Opponent } from "./game-screen";
+import { load3D, requestLeave, setPlace, start, startOnline, setOnExit, type Opponent } from "./game-screen";
 import { PLACES, placeFor, unlocked } from "../shared/places";
 import { TIERS } from "../shared/tiers";
 import { currentPlayer, PLAYER_READY, promptForPlayer, refreshPlayer } from "./account";
@@ -51,6 +51,11 @@ const bestOf = (): 1 | 3 => (match === "3" ? 3 : 1);
 
 function show(screen: "home" | "game", detail = ""): void {
   setScreen(screen === "home" ? "home" : `game:${detail || "local"}`);
+  // Entering a game adds a history entry, so the browser or phone Back asks before leaving it
+  // (see the popstate handler below). Leaving through the menu removes that entry again.
+  const wasGame = !gameScreen.hidden;
+  if (screen === "game" && !wasGame) history.pushState({ zeni: "game" }, "", location.href);
+  if (screen === "home" && wasGame && history.state?.zeni === "game") history.back();
   home.hidden = screen !== "home";
   gameScreen.hidden = screen !== "game";
   gameSheet.hidden = friendSheet.hidden = true; // starting a game closes Home's sheets
@@ -70,6 +75,11 @@ function play(opponent: Opponent): void {
 }
 
 setOnExit(() => show("home"));
+
+// Back during a game: ask first if it's under way, otherwise just return to the menu.
+window.addEventListener("popstate", () => {
+  if (!gameScreen.hidden) requestLeave(true);
+});
 
 // The 3D table is a separate download: fetch it once Home is up, so the first screen stays quick.
 const idle = window.requestIdleCallback ?? ((fn: () => void) => window.setTimeout(fn, 400));
@@ -347,6 +357,7 @@ const sharedRoom = normalizeRoomCode(location.pathname.match(/^\/r\/([^/]+)\/?$/
 const params = new URLSearchParams(location.search);
 const direct = params.get("opponent");
 if (sharedRoom) {
+  history.replaceState(null, "", "/"); // Home lives at /; the room's own entry gets /r/CODE when it opens
   show("home");
   pendingAction = () => joinRoom(sharedRoom);
   void refreshPlayer().then(() => {
