@@ -516,6 +516,7 @@ export function start(next: Setup, rematch = false, nextRound = false): void {
 }
 
 export function stop(): void {
+  leaveSheet.hidden = true;
   leaveRoom();
   running = false;
   gameToken++;
@@ -636,16 +637,54 @@ $("#result-home").addEventListener("click", () => {
   stop();
   onExit();
 });
-function leaveGame(): void {
-  const live = isOnline() ? online?.status === "playing" : game.state.status === "playing" && game.state.shots > 0;
-  const warning = isOnline() ? "Leave this game? You'll forfeit it and lose rating." : "Leave this game? It won't be saved.";
-  if (live && !confirm(warning)) return;
+// --- Leaving ------------------------------------------------------------------
+
+const leaveSheet = $("#sheet-leave");
+
+/** A game is under way, so leaving now would lose it (not in the lobby, and not once it's over). */
+export function inProgress(): boolean {
+  if (!running || !result.hidden || !notice.hidden) return false;
+  return isOnline() ? online?.status === "playing" : game.state.status === "playing";
+}
+
+/** What leaving costs, in a sentence. */
+function leaveWarning(): { text: string; button: string } {
+  if (isOnline()) return { text: "You'll forfeit this game and lose rating.", button: "Forfeit and leave" };
+  if (isDaily()) return { text: "This attempt won't count. You can play today's puzzle again from the menu.", button: "Leave" };
+  if (isTutorial()) return { text: "You can come back to it any time from How to play.", button: "Leave" };
+  const what = (setup.bestOf ?? 1) === 3 ? "This match" : "This game";
+  return { text: `${what} won't be saved.`, button: "Leave" };
+}
+
+/**
+ * Ask before leaving a game that's under way; leave straight away otherwise. `fromBack` is the
+ * browser or phone Back: it has already left the game's history entry, so put it back while asking.
+ */
+export function requestLeave(fromBack = false): void {
+  if (!inProgress()) return exitGame();
+  if (fromBack) history.pushState({ zeni: "game" }, "", location.href);
+  const { text, button } = leaveWarning();
+  $("#leave-text").textContent = text;
+  $("#leave-confirm").textContent = button;
+  leaveSheet.hidden = false;
+  $<HTMLButtonElement>("#leave-stay").focus();
+}
+
+function exitGame(): void {
+  leaveSheet.hidden = true;
   if (isOnline() && online?.status === "playing") online.client.send({ t: "resign" });
   stop();
   onExit();
 }
-$("#leave").addEventListener("click", leaveGame);
-$("#lobby-cancel").addEventListener("click", leaveGame);
+
+$("#leave").addEventListener("click", () => requestLeave());
+$("#lobby-cancel").addEventListener("click", () => requestLeave());
+$("#leave-confirm").addEventListener("click", exitGame);
+$("#leave-stay").addEventListener("click", () => (leaveSheet.hidden = true));
+leaveSheet.addEventListener("click", (e) => e.target === leaveSheet && (leaveSheet.hidden = true));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !leaveSheet.hidden) leaveSheet.hidden = true;
+});
 function roomLink(): string {
   return `${location.origin}/r/${online?.code ?? ""}`;
 }
@@ -725,7 +764,7 @@ export function startOnline(
   updateBars();
   dirty = true;
   requestAnimationFrame(() => view.resize() && (dirty = true));
-  history.replaceState(null, "", `/r/${code}`); // a reload rejoins the same room
+  history.replaceState(history.state, "", `/r/${code}`); // a reload rejoins the same room
   client.connect();
 }
 
@@ -742,7 +781,7 @@ function leaveRoom(): void {
   lobby.hidden = true;
   notice.hidden = true;
   conn.hidden = true;
-  if (location.pathname.startsWith("/r/")) history.replaceState(null, "", "/");
+  if (location.pathname.startsWith("/r/")) history.replaceState(history.state, "", "/");
 }
 
 function showLink(l: Link): void {

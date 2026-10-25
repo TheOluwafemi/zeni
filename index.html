@@ -393,6 +393,18 @@
     </div>
 
     <!-- Something went wrong with the room -->
+    <!-- Leaving a game that's under way -->
+    <div id="sheet-leave" class="overlay" hidden>
+      <div class="card dialog" role="alertdialog" aria-modal="true" aria-labelledby="leave-title" aria-describedby="leave-text">
+        <h3 id="leave-title" class="title">Leave this game?</h3>
+        <p id="leave-text" class="muted"></p>
+        <div class="row">
+          <button type="button" id="leave-confirm">Leave</button>
+          <button type="button" class="primary" id="leave-stay">Keep playing</button>
+        </div>
+      </div>
+    </div>
+
     <div id="notice" class="overlay" hidden>
       <div class="card dialog" role="alertdialog" aria-modal="true" aria-labelledby="notice-title" aria-describedby="notice-text">
         <h3 id="notice-title" class="title"></h3>
