@@ -229,20 +229,30 @@ button.ghost:hover {
   background: var(--gold);
 }
 
+/* The bar never grows taller: a long name ("Uncle Hiro · thinking…") shortens with an ellipsis, and the
+   kept coins stay on one line, overlapping a little on narrow screens, instead of wrapping. */
 .name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Kept coins, side by side. */
 .pips {
   display: flex;
-  flex: 1;
-  flex-wrap: wrap;
+  /* Keeps the room its coins need (the name gives way instead) and sits at the right. */
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   gap: 4px;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
 .pip {
+  flex: none;
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -2034,5 +2044,28 @@ button.primary {
       "hint"
       "footer";
     grid-template-rows: auto auto auto auto;
+  }
+}
+
+/* Narrow screens: kept coins overlap like a fanned row, so even a big haul fits on one line. */
+@media (max-width: 520px) {
+  .pips {
+    gap: 0;
+  }
+
+  .pip + .pip {
+    margin-left: -8px;
+  }
+}
+
+/* The computer is thinking: its turn dot pulses. */
+.player.thinking .turn-dot {
+  background: var(--gold);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player.thinking .turn-dot {
+    animation: none;
   }
 }

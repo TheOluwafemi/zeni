@@ -209,8 +209,12 @@ function updateBars(opts: { thinking?: boolean; awaiting?: Seat } = {}): void {
     }
     chip.textContent = info ? String(info.rating) : "";
     const dropped = isOnline() && online?.players[seat]?.connected === false;
-    bar.querySelector(".name")!.textContent =
-      name(seat) + (opts.thinking && seat === COMPUTER_SEAT ? " · thinking…" : "") + (dropped ? " · reconnecting…" : "");
+    bar.querySelector(".name")!.textContent = name(seat) + (dropped ? " · reconnecting…" : "");
+    // The computer thinking shows as a pulsing turn dot, not extra words: a name that changes length
+    // squeezes the coin tray and makes the bar jump.
+    const thinking = !!opts.thinking && seat === COMPUTER_SEAT;
+    bar.classList.toggle("thinking", thinking);
+    bar.setAttribute("aria-busy", String(thinking));
     bar.querySelector(".score")!.textContent = String(scores[seat]);
 
     const pips = bar.querySelector(".pips")!;
