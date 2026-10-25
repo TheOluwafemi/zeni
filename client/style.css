@@ -139,6 +139,22 @@ button.ghost:hover {
   font-size: 0.92rem;
 }
 
+/* Tables: the name, with its cup count underneath. */
+[data-group="table"] button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  line-height: 1.2;
+}
+
+[data-group="table"] small {
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
 .seg button.current {
   border-color: var(--line);
   background: var(--panel-2);

@@ -1,6 +1,6 @@
 // The messages between a player's phone and a room on the server.
 
-import type { Difficulty } from "./constants";
+import { isDifficulty, type Difficulty } from "./constants";
 import { isReactionId, type ReactionId } from "./reactions";
 import type { GameState, Seat, Shot, ShotOutcome } from "./types";
 
@@ -181,7 +181,7 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
   switch (o.t) {
     case "hello":
       if (typeof o.code !== "string" || o.code.length > 64) return null;
-      if (o.create !== undefined && o.create !== "easy" && o.create !== "hard") return null;
+      if (o.create !== undefined && !isDifficulty(o.create)) return null;
       if (o.bestOf !== undefined && o.bestOf !== 1 && o.bestOf !== 3) return null;
       return { t: "hello", code: o.code, create: o.create, ...(o.bestOf === 3 ? { bestOf: 3 as const } : {}) };
     case "shot":

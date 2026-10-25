@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { AI_LEVELS, chooseShot } from "./ai";
+import { DIFFICULTIES } from "./constants";
 import { simulateShot } from "./physics";
 import { mulberry32 } from "./rng";
 import { legalShot, newGame, resolveShot } from "./rules";
@@ -9,7 +10,7 @@ const coin = (id: number, x: number, y: number): Coin => ({ id, x, y, vx: 0, vy:
 
 describe("chooseShot", () => {
   test.each(AI_LEVELS)("%s always returns a legal shot", (level) => {
-    for (const difficulty of ["easy", "hard"] as const) {
+    for (const difficulty of DIFFICULTIES) {
       for (let seed = 1; seed <= 5; seed++) {
         const state = newGame(seed, difficulty);
         const shot = chooseShot(state, level, mulberry32(seed));

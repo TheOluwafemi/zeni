@@ -23,7 +23,7 @@ The game ends when one coin is left, no coin is free, or 40 shots have been take
 - **Online play:** Quick Match against someone at your level, or a friend with a room code or link. Rated games, a global leaderboard and six tiers from Amateur to Legend.
 - **Challenges:** challenge players you've met, and see who challenged you on the home screen.
 - **Daily puzzle:** the same table for everyone each day. Keep as many coins as you can in three turns, then share your score.
-- **Best of 3**, two tables (Easy with 4 cups, Hard with 7) and places you unlock as you climb.
+- **Best of 3**, three tables (Easy with no cups, Medium with 4, Hard with 7) and places you unlock as you climb.
 - A 3D table, characters with their own reactions, sounds and haptics.
 - A short interactive tutorial.
 - No email or password: you get a player code to sign in on another device.

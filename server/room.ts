@@ -142,7 +142,7 @@ export class Room extends DurableObject<Env> {
 
   // --- Actions ----------------------------------------------------------------
 
-  private async hello(ws: WebSocket, att: Attachment | null, msg: { code: string; create?: "easy" | "hard"; bestOf?: 1 | 3 }): Promise<void> {
+  private async hello(ws: WebSocket, att: Attachment | null, msg: { code: string; create?: Difficulty; bestOf?: 1 | 3 }): Promise<void> {
     if (att?.seat !== undefined) return this.reject(ws, "bad_message"); // one hello per connection
     const player = await playerForCode(this.env.DB, msg.code);
     if (!player) return this.reject(ws, "unauthorized");

@@ -10,7 +10,7 @@ const FIRST_DAY = Date.UTC(2026, 9, 1);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const DAILY_TURNS = 3;
-export const DAILY_TABLE: Difficulty = "easy";
+export const DAILY_TABLE: Difficulty = "medium";
 
 export function dailyNumber(now = Date.now()): number {
   return Math.floor((now - FIRST_DAY) / DAY_MS) + 1;

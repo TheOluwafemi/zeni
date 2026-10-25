@@ -1,4 +1,4 @@
-// The Quick Match queue. One Durable Object per table ("easy" and "hard"), so players are only paired
+// The Quick Match queue. One Durable Object per table ("easy", "medium" and "hard"), so players are only paired
 // with someone who wants the same table.
 //
 // The rules live in QueueCore (pure, tested). This object only stores the queue and carries out what
@@ -7,7 +7,7 @@
 // hibernating.
 
 import { DurableObject } from "cloudflare:workers";
-import type { Difficulty } from "../shared/constants";
+import { isDifficulty, type Difficulty } from "../shared/constants";
 import { parseQueueMsg, type ErrorCode, type QueueServerMsg } from "../shared/protocol";
 import { newRoomCode } from "../shared/room-code";
 import { playerForCode } from "./accounts";
@@ -159,8 +159,9 @@ export class Matchmaker extends DurableObject<Env> {
   }
 
   private table(): Difficulty {
-    // This object is named after its table ("easy" or "hard"), which survives hibernation.
-    return this.ctx.id.name === "hard" ? "hard" : "easy";
+    // This object is named after its table, which survives hibernation.
+    const name = this.ctx.id.name;
+    return isDifficulty(name) ? name : "easy";
   }
 
   /** Every open socket and what it remembers. */

@@ -1,7 +1,7 @@
 // Challenges and recent opponents on Home: "Bea challenged you · Play", "Waiting for Bea", "Play Bea again".
 // Refreshed while Home is on screen, so a challenge shows up the next time someone opens the app.
 
-import type { Difficulty } from "../shared/constants";
+import { TABLE_NAMES, type Difficulty } from "../shared/constants";
 import { currentPlayer, PLAYER_READY } from "./account";
 import { inUse, onReturn } from "./activity";
 import { api, ApiError } from "./api";
@@ -36,7 +36,7 @@ let homeVisible: () => boolean = () => true;
 let tableNow: () => Difficulty = () => "easy";
 let bestOfNow: () => 1 | 3 = () => 1;
 
-const tableName = (t: Difficulty) => (t === "easy" ? "Easy table" : "Hard table");
+const tableName = (t: Difficulty) => `${TABLE_NAMES[t]} table`;
 const minutes = (ms: number) => `${Math.max(1, Math.round(ms / 60_000))} min`;
 
 function button(label: string, onClick: () => void, cls = ""): HTMLButtonElement {

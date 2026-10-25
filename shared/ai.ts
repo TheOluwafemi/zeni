@@ -6,7 +6,7 @@
 // fires the best one with human-like aim error. Stronger levels also check that a shot
 // still works when their own aim is a little off, and avoid leaving easy shots behind.
 
-import { COIN_RADIUS, CUP_RADIUS, DEFAULT_PHYSICS, MIN_POWER, type PhysicsConfig } from "./constants";
+import { COIN_RADIUS, CUP_RADIUS, DEFAULT_PHYSICS, MIN_POWER, type Difficulty, type PhysicsConfig } from "./constants";
 import { simulateShot } from "./physics";
 import { isFree, other, resolveShot } from "./rules";
 import type { Coin, Cup, GameState, Seat, Shot } from "./types";
@@ -41,12 +41,15 @@ const LEVELS: Record<AiLevel, LevelSpec> = {
 };
 
 /**
- * The easy table (fewer cups, 14 coins) leaves far more open shots, so the same aim keeps far more
- * coins there. Shakier aim on that table keeps each level about as strong on both.
+ * Fewer cups leave far more open shots, so the same aim keeps far more coins. Shakier aim on the
+ * more open tables keeps each level about as strong on all three. On the hard table, Skilled's
+ * cautious checks found too many safe runs: a little shakier there too.
  */
-const EASY_TABLE_AIM: Record<AiLevel, number> = { beginner: 1.7, skilled: 2.5, master: 2.1 };
-/** On the hard table, Skilled's cautious checks found too many safe runs: a little shakier there. */
-const HARD_TABLE_AIM: Record<AiLevel, number> = { beginner: 1, skilled: 1.65, master: 1 };
+const TABLE_AIM: Record<Difficulty, Record<AiLevel, number>> = {
+  easy: { beginner: 2.6, skilled: 3.9, master: 3.7 },
+  medium: { beginner: 2.05, skilled: 3.25, master: 2.6 },
+  hard: { beginner: 1.7, skilled: 2.9, master: 2 },
+};
 
 const CUT_FRACTIONS = [-0.5, -0.25, 0, 0.25, 0.5];
 const FOLLOW_THROUGH = [40, 160, 360];
@@ -180,7 +183,7 @@ export function chooseShot(
   const inRun = state.shooter !== null;
   const spec = {
     ...base,
-    aimNoise: base.aimNoise * (state.difficulty === "easy" ? EASY_TABLE_AIM : HARD_TABLE_AIM)[level] * (inRun ? base.runNerves : 1),
+    aimNoise: base.aimNoise * TABLE_AIM[state.difficulty][level] * (inRun ? base.runNerves : 1),
   };
   const me = state.turn;
   const scored = candidates(state, cfg)

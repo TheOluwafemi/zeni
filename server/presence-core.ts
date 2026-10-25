@@ -20,7 +20,7 @@ export const isSessionId = (id: unknown): id is string => typeof id === "string"
 
 export class PresenceBook {
   private seen = new Map<string, number>();
-  private searching: Record<Difficulty, number> = { easy: 0, hard: 0 };
+  private searching: Record<Difficulty, number> = { easy: 0, medium: 0, hard: 0 };
   private lastPrune = 0;
 
   ping(session: unknown, now: number): PresenceInfo {

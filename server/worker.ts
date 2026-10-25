@@ -14,7 +14,7 @@ export { Presence } from "./presence";
 export { Room } from "./room";
 
 const ROOM_SOCKET = /^\/ws\/room\/([^/]+)$/;
-const QUEUE_SOCKET = /^\/ws\/queue\/(easy|hard)$/;
+const QUEUE_SOCKET = /^\/ws\/queue\/(easy|medium|hard)$/;
 
 export default {
   async fetch(request, env, ctx) {
