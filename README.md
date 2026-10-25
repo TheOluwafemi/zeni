@@ -4,7 +4,7 @@
 
 **Flick. Hit one. Keep it.** A coin-flicking game for the browser, based on the traditional Japanese game *zeni hajiki* (銭はじき, "coin flicking"). Play the computer, a friend or someone new, on your phone or computer. It installs like an app and works offline.
 
-**Play now: [zeni.oluwafemicodes.workers.dev](https://zeni.oluwafemicodes.workers.dev)**
+**Play now: [zeni.dammy.dev](https://zeni.dammy.dev)**
 
 ## How to play
 
