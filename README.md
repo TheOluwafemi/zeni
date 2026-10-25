@@ -35,7 +35,6 @@ The game ends when one coin is left, no coin is free, or 40 shots have been take
 | Game | TypeScript, three.js for the table, plain DOM and CSS for menus |
 | Physics and rules | Deterministic simulation in `shared/`, run identically by the browser and the server |
 | Server | Cloudflare Workers, with one Durable Object per game room, the Quick Match queue and the online count |
-| Database | Cloudflare D1 (players, ratings, matches, challenges) |
 | App | Installable PWA with `vite-plugin-pwa` |
 | Build and tests | Vite and Vitest |
 
@@ -45,7 +44,6 @@ The server plays every shot itself, so results can't be faked by a modified clie
 client/      the game in the browser: screens, 3D table, input, sound
 shared/      rules, physics, computer player, ratings, protocol
 server/      Worker, Durable Objects (Room, Matchmaker, Presence), API
-migrations/  D1 database schema
 tools/       simulators, online test bots, asset generators
 public/      icons, sounds, privacy page, headers
 ```
@@ -56,11 +54,10 @@ Needs Node 22 (see `.nvmrc`).
 
 ```bash
 npm ci
-npx wrangler d1 migrations apply zeni --local
 npm run dev
 ```
 
-Then open http://localhost:5173. The Worker, Durable Objects and a local database all run inside the dev server.
+Then open http://localhost:5173. The Worker and Durable Objects run inside the dev server.
 
 ### Useful scripts
 
@@ -71,14 +68,6 @@ Then open http://localhost:5173. The Worker, Durable Objects and a local databas
 | `npm run build` | Typecheck and build for production |
 | `npm run simulate` | Play many computer-vs-computer games to check balance |
 | `npm run play-online` | End-to-end test of online play against a running dev server |
-
-## Deploying
-
-Pushing to `main` deploys to production through Cloudflare Workers Builds. Apply new database migrations to production before merging:
-
-```bash
-npx wrangler d1 migrations apply zeni --remote
-```
 
 ## Credits
 
