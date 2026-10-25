@@ -84,3 +84,7 @@ npx wrangler d1 migrations apply zeni --remote
 
 - Sound effects from [Kenney](https://kenney.nl) (CC0): Impact Sounds, Casino Audio and RPG Audio.
 - Based on *zeni hajiki*, a traditional Japanese children's game.
+
+## License
+
+[MIT](LICENSE). The Kenney sounds are CC0 and free to use without credit.
