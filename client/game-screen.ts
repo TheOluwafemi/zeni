@@ -1,6 +1,6 @@
 import type { AiLevel } from "../shared/ai";
 import { CHARACTERS, lookFromSeed, lookSeed, type Expression, type Look } from "../shared/avatar";
-import { COIN_COUNT, COIN_RADIUS, DEFAULT_PHYSICS, type Difficulty } from "../shared/constants";
+import { COIN_COUNT, COIN_RADIUS, DEFAULT_PHYSICS, TABLE_NAMES, type Difficulty } from "../shared/constants";
 import { AIM_SEND_MS, TURN_MS, type MatchInfo, type OverInfo, type Players, type ServerMsg } from "../shared/protocol";
 import { newRoomCode } from "../shared/room-code";
 import { randomSeed } from "../shared/rng";
@@ -492,7 +492,7 @@ export function start(next: Setup, rematch = false, nextRound = false): void {
     ? tutorialLabel()
     : isDaily()
     ? dailyLabel()
-    : `${vsComputer() ? `vs ${character().name} · ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${setup.difficulty === "easy" ? "Easy table" : "Hard table"}` +
+    : `${vsComputer() ? `vs ${character().name} · ${LEVEL_NAMES[setup.opponent as AiLevel]}` : "Two players"} · ${TABLE_NAMES[setup.difficulty]} table` +
       roundLabel({ bestOf: setup.bestOf ?? 1, round: localMatch.round, wins: localMatch.wins });
   faces[0] = faces[1] = "neutral";
   updateBars();
@@ -736,7 +736,7 @@ export function startOnline(
   stop();
   const token = ++gameToken;
   running = true;
-  setup = { opponent: "online", difficulty: create ?? "easy" };
+  setup = { opponent: "online", difficulty: create ?? "medium" };
   bars[1].hidden = false;
   game.physics = { ...DEFAULT_PHYSICS }; // both players must simulate with the same numbers
   game.controlledSeat = 0;
@@ -809,7 +809,7 @@ function showFatal(reason: Fatal | "no_show"): void {
 function onlineLabel(): void {
   const o = online;
   if (!o) return;
-  $("#game-label").textContent = `Room ${o.code} · ${setup.difficulty === "easy" ? "Easy" : "Hard"} table${roundLabel(o.match, o.seat)}`;
+  $("#game-label").textContent = `Room ${o.code} · ${TABLE_NAMES[setup.difficulty]} table${roundLabel(o.match, o.seat)}`;
 }
 
 function onServer(msg: ServerMsg): void {

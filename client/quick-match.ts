@@ -5,7 +5,7 @@
 // players must accept: the sheet accepts straight away, the background search asks "Opponent found ·
 // Join?" so nobody is pulled out of a game they're enjoying without saying yes.
 
-import type { Difficulty } from "../shared/constants";
+import { TABLE_NAMES, type Difficulty } from "../shared/constants";
 import type { QueueServerMsg } from "../shared/protocol";
 import { identity } from "./api";
 
@@ -47,7 +47,7 @@ document.addEventListener("visibilitychange", () => onVisible());
 let tick = 0;
 let pillTimer = 0;
 
-const tableName = (t: Difficulty) => (t === "easy" ? "Easy" : "Hard");
+const tableName = (t: Difficulty) => TABLE_NAMES[t];
 const elapsed = (s: Search) => {
   const secs = Math.floor((Date.now() - s.started) / 1000);
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;

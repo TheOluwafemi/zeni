@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { COIN_COUNT, COIN_RADIUS, CUP_RADIUS, CUPS, MAX_SHOTS, TABLE_CENTER, TABLE_RADIUS } from "./constants";
+import { COIN_COUNT, COIN_RADIUS, CUP_RADIUS, CUPS, DIFFICULTIES, MAX_SHOTS, TABLE_CENTER, TABLE_RADIUS } from "./constants";
 import { simulateShot } from "./physics";
 import { mulberry32 } from "./rng";
 import { freeCoinIds, isFree, legalShot, newGame, resolveShot } from "./rules";
@@ -28,7 +28,7 @@ function play(state: GameState, shot: Shot) {
 }
 
 describe("newGame", () => {
-  test.each(["easy", "hard"] as const)("%s: lays out coins and cups the same way for the same seed", (difficulty) => {
+  test.each(DIFFICULTIES)("%s: lays out coins and cups the same way for the same seed", (difficulty) => {
     const g = newGame(42, difficulty);
     expect(g.coins).toHaveLength(COIN_COUNT);
     expect(g.cups).toHaveLength(CUPS[difficulty]);
@@ -189,7 +189,7 @@ describe("resolveShot", () => {
 });
 
 describe("full games", () => {
-  test.each(["easy", "hard"] as const)("%s: random play always reaches a result and every coin is accounted for", (difficulty) => {
+  test.each(DIFFICULTIES)("%s: random play always reaches a result and every coin is accounted for", (difficulty) => {
     for (let seed = 1; seed <= 30; seed++) {
       const rng = mulberry32(seed * 7919);
       let state = newGame(seed, difficulty);
@@ -211,7 +211,7 @@ describe("full games", () => {
 });
 
 test("every seed lays out a full table, even with the most cups", () => {
-  for (const difficulty of ["easy", "hard"] as const) {
+  for (const difficulty of DIFFICULTIES) {
     for (let seed = 1; seed <= 5000; seed++) {
       const s = newGame(seed, difficulty);
       expect(s.coins).toHaveLength(COIN_COUNT);

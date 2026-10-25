@@ -1,7 +1,7 @@
 // App shell: home screen, settings, How to Play, and moving between screens.
 
 import { AI_LEVELS, type AiLevel } from "../shared/ai";
-import { COIN_COUNT, CUPS, type Difficulty } from "../shared/constants";
+import { COIN_COUNT, CUPS, DIFFICULTIES, isDifficulty, TABLE_NAMES, type Difficulty } from "../shared/constants";
 import { CHARACTERS } from "../shared/avatar";
 import { avatarSvg } from "./avatar-svg";
 import { dailyNumber } from "../shared/daily";
@@ -42,8 +42,17 @@ function save(key: string, value: string): void {
   }
 }
 
+/** The table picked before Medium existed: the old Easy table had 4 cups, which is Medium now. */
+function oldTable(): Difficulty {
+  try {
+    return localStorage.getItem("zeni.table") === "hard" ? "hard" : "medium";
+  } catch {
+    return "medium";
+  }
+}
+
 let level: AiLevel = load("zeni.level", AI_LEVELS, "beginner");
-let table: Difficulty = load("zeni.table", ["easy", "hard"] as const, "easy");
+let table: Difficulty = load("zeni.table2", DIFFICULTIES, oldTable());
 let match = load("zeni.match", ["1", "3"] as const, "1");
 const bestOf = (): 1 | 3 => (match === "3" ? 3 : 1);
 
@@ -120,10 +129,14 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="level
   b.setAttribute("aria-label", `${c.name}, ${levelName}`);
 }
 bindSegment("level", level, (v) => save("zeni.level", (level = v as AiLevel)));
-// "Easy · 4 cups": the counts come from the rules, so the labels can't drift from them.
+// "Medium", "4 cups": the counts come from the rules, so the labels can't drift from them.
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-group="table"] button')) {
   const d = b.dataset.value as Difficulty;
-  b.textContent = `${d === "easy" ? "Easy" : "Hard"} · ${CUPS[d]} cups`;
+  const name = document.createElement("strong");
+  name.textContent = TABLE_NAMES[d];
+  const cups = document.createElement("small");
+  cups.textContent = CUPS[d] ? `${CUPS[d]} cups` : "No cups";
+  b.replaceChildren(name, cups);
 }
 bindSegment("match", match, (v) => {
   save("zeni.match", (match = v as "1" | "3"));
@@ -179,7 +192,7 @@ function renderPlaces(): void {
 renderPlaces();
 window.addEventListener(PLAYER_READY, renderPlaces);
 bindSegment("table", table, (v) => {
-  save("zeni.table", (table = v as Difficulty));
+  save("zeni.table2", (table = v as Difficulty));
   renderPresence();
   renderSummary();
 });
@@ -192,7 +205,7 @@ const friendSheet = $("#sheet-friend");
 /** "Easy table · Single game · Kitchen": the settings at a glance; tap to change them. */
 function renderSummary(): void {
   const place = placeFor(pickedPlace, currentPlayer()?.rating ?? null);
-  $("#settings-summary").textContent = `${table === "easy" ? "Easy" : "Hard"} table · ${match === "3" ? "Best of 3" : "Single game"} · ${place.name}`;
+  $("#settings-summary").textContent = `${TABLE_NAMES[table]} table · ${match === "3" ? "Best of 3" : "Single game"} · ${place.name}`;
 }
 
 function openSheet(sheet: HTMLElement, focus: string): void {
@@ -364,7 +377,8 @@ if (sharedRoom) {
     if (!currentPlayer()) promptForPlayer(); // PLAYER_READY then runs the join
   });
 } else if (direct === "friend" || AI_LEVELS.includes(direct as AiLevel)) {
-  if (params.get("difficulty") === "hard") table = "hard";
+  const d = params.get("difficulty");
+  if (isDifficulty(d)) table = d;
   play(direct as Opponent);
 } else {
   show("home");

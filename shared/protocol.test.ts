@@ -14,7 +14,7 @@ describe("parseClientMsg", () => {
   test("rejects junk, wrong types and oversized messages", () => {
     for (const bad of [
       "", "not json", "null", "[]", '"hello"', "42", '{"t":"nope"}', '{"t":"hello"}', '{"t":"hello","code":5}',
-      '{"t":"hello","code":"x","create":"medium"}', '{"t":"shot","seq":"1","coinId":0,"angle":0,"power":1}',
+      '{"t":"hello","code":"x","create":"extreme"}', '{"t":"shot","seq":"1","coinId":0,"angle":0,"power":1}',
       '{"t":"shot","seq":1.5,"coinId":0,"angle":0,"power":1}', '{"t":"shot","seq":1,"coinId":0,"angle":null,"power":1}',
       '{"t":"shot","seq":1,"coinId":0,"angle":0}', "x".repeat(MAX_MESSAGE_BYTES + 1),
     ]) {

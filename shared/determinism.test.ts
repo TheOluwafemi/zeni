@@ -3,7 +3,7 @@
 // (`npx vitest run shared/determinism.test.ts -u`), never by accident.
 
 import { describe, expect, test } from "vitest";
-import { DEFAULT_PHYSICS } from "./constants";
+import { DEFAULT_PHYSICS, type Difficulty } from "./constants";
 import { simulateShot } from "./physics";
 import { mulberry32 } from "./rng";
 import { freeCoinIds, newGame, resolveShot } from "./rules";
@@ -28,7 +28,7 @@ function fingerprint(state: GameState): string {
 }
 
 /** Play a whole game with shots chosen from a seeded random sequence. */
-function replay(seed: number, difficulty: "easy" | "hard", frames = false): string[] {
+function replay(seed: number, difficulty: Difficulty, frames = false): string[] {
   let state = newGame(seed, difficulty);
   const rng = mulberry32(seed * 7 + 1);
   const prints: string[] = [];
@@ -48,11 +48,15 @@ function replay(seed: number, difficulty: "easy" | "hard", frames = false): stri
 
 describe("the same shots always give the same game", () => {
   test("on the easy table", () => {
-    expect(replay(11, "easy").slice(-1)[0]).toMatchInlineSnapshot(`"5a61394c"`);
+    expect(replay(11, "easy").slice(-1)[0]).toMatchInlineSnapshot(`"d14f17b4"`);
+  });
+
+  test("on the medium table", () => {
+    expect(replay(23, "medium").slice(-1)[0]).toMatchInlineSnapshot(`"6af79a05"`);
   });
 
   test("on the hard table", () => {
-    expect(replay(42, "hard").slice(-1)[0]).toMatchInlineSnapshot(`"e2fc447b"`);
+    expect(replay(42, "hard").slice(-1)[0]).toMatchInlineSnapshot(`"4979bfae"`);
   });
 
   test("recording frames for the screen doesn't change the result", () => {

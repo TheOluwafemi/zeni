@@ -1,7 +1,7 @@
 // A scripted player for testing online play: registers, connects to a room and takes its turns.
 // Used by play-online.ts (automated checks) and bot-room.ts (to play against from the browser).
 
-import { DEFAULT_PHYSICS } from "../shared/constants";
+import { DEFAULT_PHYSICS, type Difficulty } from "../shared/constants";
 import { AIM_SEND_MS, type ClientMsg, type OverInfo, type QueueServerMsg, type ServerMsg } from "../shared/protocol";
 import { mulberry32 } from "../shared/rng";
 import type { GameState } from "../shared/types";
@@ -59,7 +59,7 @@ export class Bot {
     this.rng = mulberry32(seed);
   }
 
-  connect(room: string, create?: "easy" | "hard", bestOf?: 1 | 3): Promise<void> {
+  connect(room: string, create?: Difficulty, bestOf?: 1 | 3): Promise<void> {
     this.closed = null;
     this.ws = new WebSocket(`${this.srv.ws}/ws/room/${room}`);
     this.ws.addEventListener("message", (e) => this.onMessage(JSON.parse(String(e.data)) as ServerMsg));
@@ -147,7 +147,7 @@ export class QueueSocket {
     readonly autoAccept = true,
   ) {}
 
-  join(table: "easy" | "hard"): Promise<void> {
+  join(table: Difficulty): Promise<void> {
     this.ws = new WebSocket(`${this.srv.ws}/ws/queue/${table}`);
     this.ws.addEventListener("message", (e) => {
       const msg = JSON.parse(String(e.data)) as QueueServerMsg;

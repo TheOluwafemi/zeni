@@ -7,6 +7,7 @@
 // Players are named by nickname (already public on the leaderboard), so player ids never leave the
 // server.
 
+import { isDifficulty, type Difficulty } from "../shared/constants";
 import { ROOM_IDLE_MS } from "../shared/protocol";
 import { authenticate, allow, type Db, type Player } from "./accounts";
 import { readJson } from "./http";
@@ -22,7 +23,7 @@ const RECENT_DAYS = 30;
 const RECENT_COUNT = 5;
 
 /** Opens a room reserved for two players. False if that code is taken. */
-export type OpenRoom = (code: string, table: "easy" | "hard", players: [string, string], bestOf: 1 | 3) => Promise<boolean>;
+export type OpenRoom = (code: string, table: Difficulty, players: [string, string], bestOf: 1 | 3) => Promise<boolean>;
 
 const json = (body: unknown, status = 200): Response => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 const fail = (status: number, error: string): Response => json({ error }, status);
@@ -30,7 +31,7 @@ const fail = (status: number, error: string): Response => json({ error }, status
 interface Row {
   id: string;
   room: string;
-  table_kind: "easy" | "hard";
+  table_kind: Difficulty;
   status: string;
   expires_at: number;
   nickname: string;
@@ -113,7 +114,7 @@ export async function handleChallenges(
   // POST /api/challenges {to: nickname, table} → a new challenge (or the one already open to them)
   if (pathname === "/api/challenges" && method === "POST") {
     const body = (await readJson(request)) as { to?: unknown; table?: unknown; bestOf?: unknown } | null;
-    const table = body?.table === "hard" ? "hard" : "easy";
+    const table = isDifficulty(body?.table) ? body.table : "medium";
     const bestOf = body?.bestOf === 3 ? 3 : 1;
     if (typeof body?.to !== "string" || body.to.length > 32) return fail(400, "unknown_player");
     const them = await db.prepare("SELECT id, nickname, rating FROM players WHERE nickname = ?1").bind(body.to).first<Pick<Player, "id" | "nickname" | "rating">>();

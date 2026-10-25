@@ -14,7 +14,9 @@ import { mulberry32 } from "./rng";
 import type { Coin, Cup, GameState, Seat, Shot, ShotOutcome, ShotResult, SimEvent } from "./types";
 
 const COIN_MARGIN = 140; // keep the starting coins away from the edge
-const CUP_MARGIN = 200;
+const CUP_MARGIN = 110; // cups can sit anywhere, right up to near the edge
+/** Chance that a cup is set down beside one already placed, so some tables have clusters and open spaces. */
+const CUP_CLUSTER = 0.45;
 const COIN_SPACING = COIN_RADIUS * 2 + 40;
 const CUP_SPACING = CUP_RADIUS * 2 + COIN_RADIUS * 2; // a coin can always pass between two cups
 const CUP_CLEARANCE = CUP_RADIUS + COIN_RADIUS + 30;
@@ -29,6 +31,14 @@ export function newGame(seed: number, difficulty: Difficulty = "easy", first?: S
     const r = Math.sqrt(rng()) * (TABLE_RADIUS - margin);
     return { x: TABLE_CENTER + Math.cos(a) * r, y: TABLE_CENTER + Math.sin(a) * r };
   };
+  const onTable = (p: { x: number; y: number }, margin: number) =>
+    (p.x - TABLE_CENTER) ** 2 + (p.y - TABLE_CENTER) ** 2 <= (TABLE_RADIUS - margin) ** 2;
+  // Just far enough from another cup that a coin can still pass between them.
+  const beside = (c: { x: number; y: number }) => {
+    const a = rng() * Math.PI * 2;
+    const d = CUP_SPACING + rng() * 60;
+    return { x: c.x + Math.cos(a) * d, y: c.y + Math.sin(a) * d };
+  };
   const far = (a: { x: number; y: number }, b: { x: number; y: number }, d: number) =>
     (a.x - b.x) ** 2 + (a.y - b.y) ** 2 >= d * d;
 
@@ -38,8 +48,8 @@ export function newGame(seed: number, difficulty: Difficulty = "easy", first?: S
     const cups: Cup[] = [];
     for (let tries = 0; cups.length < CUPS[difficulty]; tries++) {
       if (tries > 2_000) return null;
-      const p = place(CUP_MARGIN);
-      if (cups.every((c) => far(c, p, CUP_SPACING))) cups.push(p);
+      const p = cups.length > 0 && rng() < CUP_CLUSTER ? beside(cups[Math.floor(rng() * cups.length)]) : place(CUP_MARGIN);
+      if (onTable(p, CUP_MARGIN) && cups.every((c) => far(c, p, CUP_SPACING))) cups.push(p);
     }
     const coins: Coin[] = [];
     for (let tries = 0; coins.length < COIN_COUNT; tries++) {

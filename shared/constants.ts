@@ -13,8 +13,11 @@ export const COIN_COUNT = 14;
 export const CUP_RADIUS = 56;
 
 /** Cups on the table per difficulty. Cups never move and block lines of sight. */
-export const CUPS = { easy: 4, hard: 7 } as const;
+export const CUPS = { easy: 0, medium: 4, hard: 7 } as const;
 export type Difficulty = keyof typeof CUPS;
+export const DIFFICULTIES = Object.keys(CUPS) as Difficulty[];
+export const TABLE_NAMES: Record<Difficulty, string> = { easy: "Easy", medium: "Medium", hard: "Hard" };
+export const isDifficulty = (v: unknown): v is Difficulty => typeof v === "string" && v in CUPS;
 
 // Rules
 export const MAX_SHOTS = 40; // safety net so a game can't go on forever

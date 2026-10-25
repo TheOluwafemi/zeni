@@ -32,7 +32,7 @@ describe("PresenceBook", () => {
     const book = new PresenceBook();
     book.setSearching("easy", 2);
     book.setSearching("hard", 1);
-    expect(book.ping(id(1), T0)).toEqual({ online: 1, searching: { easy: 2, hard: 1 } });
+    expect(book.ping(id(1), T0)).toEqual({ online: 1, searching: { easy: 2, medium: 0, hard: 1 } });
     book.setSearching("easy", -3); // nonsense is clamped
     expect(book.info(T0).searching.easy).toBe(0);
   });

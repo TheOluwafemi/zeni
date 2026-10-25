@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { describePresence } from "./presence-text";
 
-const info = (online: number, easy: number, hard: number) => ({ online, searching: { easy, hard } });
+const info = (online: number, easy: number, hard: number, medium = 0) => ({ online, searching: { easy, medium, hard } });
 
 describe("describePresence", () => {
   test("invites the player to bring a friend when nobody else is around", () => {
@@ -17,6 +17,10 @@ describe("describePresence", () => {
   test("points to the other table when that's where someone is waiting", () => {
     expect(describePresence(info(3, 0, 1), "easy")).toBe("3 online · 1 looking for a game on the Hard table");
     expect(describePresence(info(3, 1, 0), "hard")).toBe("3 online · 1 looking for a game on the Easy table");
+  });
+
+  test("names the busiest other table", () => {
+    expect(describePresence(info(6, 0, 1, 2), "easy")).toBe("6 online · 2 looking for a game on the Medium table");
   });
 
   test("prefers the chosen table when both have people waiting", () => {
